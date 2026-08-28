@@ -1,6 +1,7 @@
 {
   "name": "pulse-verity",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "mcpName": "io.github.pulsebet/pulse-verity",
   "description": "Read-only MCP server for signed, verifiable Pulse Verity Index crypto prices",
   "license": "MIT",
   "type": "module",
