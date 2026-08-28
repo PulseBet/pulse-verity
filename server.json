@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.pulsebet/pulse-verity",
+  "name": "io.github.PulseBet/pulse-verity",
   "description": "Read-only access to signed, verifiable crypto index prices from the Pulse Verity Index",
   "repository": {
     "url": "https://github.com/PulseBet/pulse-verity",
     "source": "github"
   },
-  "version": "1.0.1",
+  "version": "1.0.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "pulse-verity",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {
