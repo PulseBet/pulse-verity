@@ -13,9 +13,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
-          cache: npm
+      - run: npm install --global npm@latest
       - run: npm ci
       - run: npm test
       - run: npm audit --omit=dev --audit-level=high
@@ -32,58 +32,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
-          cache: npm
+      - run: npm install --global npm@latest
       - run: npm ci
       - run: npm run build
-      - run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  publish-aliases:
-    needs: publish-canonical
-    runs-on: ubuntu-latest
-    environment: npm-publish
-    permissions:
-      contents: read
-      id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        package:
-          - pulse-verity-index
-          - pulseverityindex
-          - pulseverity
-          - pulse-index
-          - pulseindex
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: node scripts/prepare-alias.mjs "${{ matrix.package }}" "${{ runner.temp }}/package"
-      - run: npm publish "${{ runner.temp }}/package" --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  deprecate-aliases:
-    needs: publish-aliases
-    runs-on: ubuntu-latest
-    environment: npm-publish
-    steps:
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-      - name: Point aliases to pulse-verity
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          for package in pulse-verity-index pulseverityindex pulseverity pulse-index pulseindex; do
-            npm deprecate "${package}@1.0.0" "Use pulse-verity, the canonical Pulse Verity Index MCP package."
-          done
+      # npm exchanges GitHub's short-lived OIDC identity for publish authority.
+      # No long-lived NPM_TOKEN is available to this job.
+      - run: npm publish --access public
