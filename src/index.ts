@@ -1,241 +1,327 @@
 #!/usr/bin/env node
-/**
- * MCP server for the Pulse Verity Index (thepulse.markets/developers).
- *
- * Three READ-ONLY tools against the live Index API:
- *   - get_index_price(symbol)          — the signed, blended index price now
- *   - get_settlement_print(symbol, at) — the signed print nearest a moment
- *   - verify_print(print)              — LOCAL cryptographic verification
- *
- * verify_print never asks the API whether a print is genuine — it fetches
- * the public key once and checks the ECDSA signature on this machine. An
- * agent can therefore prove a price claim without trusting the transport
- * it arrived over.
- *
- * Auth: a normal Pulse developer API key (free at
- * thepulse.markets/developers) via the PULSE_API_KEY environment variable.
- * There are no write tools. Nothing here places, creates, or cancels
- * anything.
- */
-
+/** Read-only MCP access to the public Pulse Verity Index API. */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 
-// The public package is intentionally pinned to the public Pulse Verity Index
-// API. Allowing a configurable origin would let a hostile configuration send
-// the developer's API key to an unrelated server.
-const API_BASE = "https://pulseclone-production.up.railway.app";
-const API_KEY = process.env.PULSE_API_KEY || "";
-
-// ── The verification recipe, self-contained ────────────────────────────────
-// Mirrors the published canonical exactly (see GET /api/index/v1/pubkey):
-//   pulse-index-v1 \n SYMBOL \n <price as the exact wire string> \n <at ISO> \n <grade>
-// signed ECDSA P-256 / SHA-256, signature base64 in IEEE-P1363 (r||s) form.
+export const SERVER_VERSION = "1.1.0";
+export const API_BASE = "https://pulseclone-production.up.railway.app";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
+export const MAX_RESPONSE_BYTES = 1_048_576;
+export const REQUEST_TIMEOUT_MS = 15_000;
+export const KEY_CACHE_TTL_MS = 300_000;
+export const KEY_REFRESH_COOLDOWN_MS = 30_000;
+export const MAX_VERIFICATION_KEYS = 16;
+
+const API_PATHS = [
+  "/api/index/v1/price", "/api/index/v1/batch", "/api/index/v1/print",
+  "/api/index/v1/verity/catalog", "/api/index/v1/pubkey"
+] as const;
+type ApiPath = typeof API_PATHS[number];
+export type ApiClient = (path: ApiPath, params?: Record<string, string>) => Promise<Record<string, unknown>>;
+
+const SafeText = (max: number) => z.string().min(1).max(max)
+  .regex(/^[^\x00-\x1f\x7f\u0085\u2028\u2029]+$/, "Control characters are not allowed");
+const SymbolSchema = z.string().min(1).max(20).regex(/^[A-Za-z0-9]+$/)
+  .describe("Crypto ticker symbol, e.g. BTC, ETH, SOL");
+const KidSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,64}$/);
+const PriceTextSchema = z.string().min(1).max(100)
+  .regex(/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/)
+  .refine((value) => Number.isFinite(Number(value)), "Price must be finite");
+const TimestampSchema = SafeText(40).refine((value) => Number.isFinite(Date.parse(value)), "Invalid timestamp");
+const PrintFields = {
+  symbol: SymbolSchema,
+  price: z.union([PriceTextSchema, z.number().finite()]),
+  priceText: PriceTextSchema.optional().describe("Exact signed price text, when provided by the API; preserve unchanged"),
+  at: TimestampSchema.describe("Timestamp from the print, unchanged"),
+  grade: SafeText(20),
+  signature: z.string().length(88).regex(/^[A-Za-z0-9+/]{86}==$/).describe("ECDSA P-256 signature in base64"),
+  kid: KidSchema.optional().describe("Signing key identifier, when provided by the API"),
+  sig: z.literal(INDEX_SIG_VERSION).optional()
+};
+const UnsignedPrintSchema = z.object(PrintFields).omit({ signature: true });
+const PrintSchema = z.object(PrintFields);
 
 export interface VerifiablePrint {
   symbol: string;
   price: string | number;
+  priceText?: string;
   at: string;
   grade: string;
   signature: string;
+  kid?: string;
+  sig?: typeof INDEX_SIG_VERSION;
 }
 
-export function canonicalPricePayload(p: Omit<VerifiablePrint, "signature">): string {
-  return [INDEX_SIG_VERSION, p.symbol, String(p.price), p.at, p.grade].join("\n");
+/** The immutable v1 signature covers only these five newline-separated fields. */
+export function canonicalPricePayload(input: Omit<VerifiablePrint, "signature">): string {
+  const p = UnsignedPrintSchema.parse(input);
+  if (p.priceText !== undefined && Number(p.priceText) !== Number(p.price)) {
+    throw new Error("Price and priceText disagree");
+  }
+  return [INDEX_SIG_VERSION, p.symbol, p.priceText ?? String(p.price), p.at, p.grade].join("\n");
 }
 
-export function verifySignature(p: VerifiablePrint, publicKeyPem: string): boolean {
+function publicP256Key(pem: string): crypto.KeyObject {
+  if (pem.length > 4096 || !pem.startsWith("-----BEGIN PUBLIC KEY-----")) {
+    throw new Error("Invalid public verification key");
+  }
+  const key = crypto.createPublicKey(pem);
+  if (key.asymmetricKeyType !== "ec" || key.asymmetricKeyDetails?.namedCurve !== "prime256v1") {
+    throw new Error("Verification requires a P-256 public key");
+  }
+  return key;
+}
+
+export function verifySignature(input: VerifiablePrint, publicKeyPem: string): boolean {
   try {
-    const sig = Buffer.from(p.signature, "base64");
-    if (sig.length !== 64) return false; // P-1363 r||s for P-256 is exactly 64 bytes
-    return crypto.verify(
-      "sha256",
-      Buffer.from(canonicalPricePayload(p)),
-      { key: publicKeyPem, dsaEncoding: "ieee-p1363" },
-      sig
-    );
+    const p = PrintSchema.parse(input);
+    const signature = Buffer.from(p.signature, "base64");
+    if (signature.length !== 64 || signature.toString("base64") !== p.signature) return false;
+    return crypto.verify("sha256", Buffer.from(canonicalPricePayload(p)),
+      { key: publicP256Key(publicKeyPem), dsaEncoding: "ieee-p1363" }, signature);
   } catch {
     return false;
   }
 }
 
-// ── Shared API plumbing ────────────────────────────────────────────────────
-interface ApiError { status: number; body: { code?: string; message?: string } }
-
-async function apiGet<T>(path: string, params: Record<string, string>, keyed: boolean): Promise<T> {
-  const qs = new URLSearchParams(params).toString();
-  const res = await fetch(`${API_BASE}${path}${qs ? `?${qs}` : ""}`, {
-    headers: {
-      Accept: "application/json",
-      ...(keyed ? { Authorization: `Bearer ${API_KEY}` } : {})
-    },
-    signal: AbortSignal.timeout(15_000)
-  });
-  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) throw { status: res.status, body } as ApiError;
-  return body as T;
+// API origin and paths are pinned. Redirects never receive the developer key.
+// Errors deliberately exclude response bodies, headers and raw fetch errors.
+export class ApiFailure extends Error {
+  constructor(readonly status: number) { super("HTTP " + status); }
 }
 
-function describeApiError(error: unknown): string {
-  const e = error as Partial<ApiError> & { message?: string };
-  if (typeof e?.status === "number") {
-    const msg = e.body?.message || e.body?.code || `HTTP ${e.status}`;
-    switch (e.status) {
-      case 401: return `Error: the API key was refused (${msg}). Set PULSE_API_KEY to a valid key from thepulse.markets/developers.`;
-      case 404: return `Error: ${msg}`;
-      case 429: return `Error: rate limited (${msg}). Free keys allow 1 request/second — wait a moment and retry, or upgrade the key's tier.`;
-      case 503: return `Error: ${msg} The index only serves values it can currently stand behind; retry shortly.`;
-      default: return `Error: request failed — ${msg}.`;
+export function redactCredentials(value: string, apiKey = ""): string {
+  return (apiKey ? value.split(apiKey).join("[REDACTED]") : value)
+    .replace(/pidx_[A-Za-z0-9_-]+/g, "[REDACTED]")
+    .replace(/Bearer\s+[^\s"\\,}]+/gi, "Bearer [REDACTED]");
+}
+
+function sanitizeResponse(value: unknown, apiKey: string, depth = 0): unknown {
+  if (depth > 30) throw new Error("API response nesting exceeded its limit");
+  if (typeof value === "string") return redactCredentials(value, apiKey);
+  if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Non-finite API value");
+  if (Array.isArray(value)) return value.map((item) => sanitizeResponse(item, apiKey, depth + 1));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) =>
+    [redactCredentials(key, apiKey), sanitizeResponse(item, apiKey, depth + 1)]));
+  return value;
+}
+
+export function describeApiError(error: unknown): string {
+  if (error instanceof ApiFailure) {
+    switch (error.status) {
+      case 401: return "Error: the API key was refused. Set PULSE_API_KEY to a valid key from thepulse.markets/developers.";
+      case 403: return "Error: this API key does not have access to the requested data.";
+      case 404: return "Error: the symbol or recorded print is unavailable.";
+      case 429: return "Error: the API request limit was reached. Wait before retrying; limits depend on your key's tier.";
+      case 503: return "Error: the requested index data is currently unavailable. Retry shortly; unavailable prices are not zero.";
+      default: return "Error: the Pulse Verity Index API returned HTTP " + error.status + ".";
     }
   }
-  return `Error: could not reach the Pulse Verity Index API at ${API_BASE} (${e?.message || String(error)}).`;
+  return "Error: the Pulse Verity Index request or verification could not complete. Check the inputs and connection, then retry shortly.";
 }
 
-let cachedPubkeyPem: string | null = null;
-async function pubkeyPem(): Promise<string> {
-  if (cachedPubkeyPem) return cachedPubkeyPem;
-  const r = await apiGet<{ publicKeyPem: string }>("/api/index/v1/pubkey", {}, false);
-  cachedPubkeyPem = r.publicKeyPem;
-  return cachedPubkeyPem;
+export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): ApiClient {
+  return async (path, params = {}) => {
+    if (!API_PATHS.includes(path)) throw new Error("Unsupported API path");
+    const keyed = path !== "/api/index/v1/pubkey";
+    if (keyed && (!apiKey || /[\s\x00-\x1f\x7f]/.test(apiKey))) throw new Error("Invalid API key configuration");
+    const query = new URLSearchParams(params).toString();
+    const response = await fetcher(API_BASE + path + (query ? "?" + query : ""), {
+      method: "GET",
+      headers: { Accept: "application/json", ...(keyed ? { Authorization: "Bearer " + apiKey } : {}) },
+      redirect: "error",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new ApiFailure(response.status);
+    }
+    const declaredLength = Number(response.headers.get("content-length"));
+    if (declaredLength > MAX_RESPONSE_BYTES) {
+      await response.body?.cancel();
+      throw new Error("API response exceeded its size limit");
+    }
+    if (!response.body) throw new Error("Empty API response");
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        length += value.byteLength;
+        if (length > MAX_RESPONSE_BYTES) throw new Error("API response exceeded its size limit");
+        chunks.push(value);
+      }
+    } catch (error) {
+      await reader.cancel().catch(() => {});
+      throw error;
+    } finally {
+      reader.releaseLock();
+    }
+    const body = sanitizeResponse(JSON.parse(Buffer.concat(chunks).toString("utf8")), apiKey);
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid API response");
+    return body as Record<string, unknown>;
+  };
+}
+
+interface KeyRing { keys: Map<string, string>; }
+const KeyDocumentSchema = z.object({
+  activeKid: KidSchema.optional(),
+  publicKeyPem: z.string().min(1).max(4096).optional(),
+  verificationKeys: z.array(z.object({ kid: KidSchema, pem: z.string().min(1).max(4096) }))
+    .min(1).max(MAX_VERIFICATION_KEYS).optional()
+});
+
+function parseKeyRing(input: unknown): KeyRing {
+  const document = KeyDocumentSchema.parse(input);
+  const keys = new Map<string, string>();
+  for (const entry of document.verificationKeys ?? []) {
+    publicP256Key(entry.pem);
+    if (keys.has(entry.kid)) throw new Error("Duplicate verification key identifier");
+    keys.set(entry.kid, entry.pem);
+  }
+  if (document.publicKeyPem) {
+    const active = publicP256Key(document.publicKeyPem).export({ type: "spki", format: "pem" });
+    if (!keys.size) keys.set(document.activeKid ?? "", document.publicKeyPem);
+    else if (document.activeKid) {
+      const match = keys.get(document.activeKid);
+      if (!match || publicP256Key(match).export({ type: "spki", format: "pem" }) !== active) {
+        throw new Error("Active verification key does not match the key ring");
+      }
+    }
+  }
+  if (!keys.size || (document.activeKid && !keys.has(document.activeKid))) {
+    throw new Error("Missing public verification key");
+  }
+  return { keys };
+}
+
+/** Bounded cache: rotation refreshes coalesce and are limited to once per 30s. */
+export class PublicKeyCache {
+  private ring?: KeyRing;
+  private fetchedAt = -Infinity;
+  private lastAttempt = -Infinity;
+  private pending?: Promise<KeyRing>;
+  constructor(private readonly fetchKeys: () => Promise<unknown>, private readonly now = Date.now) {}
+
+  private async load(force = false): Promise<KeyRing> {
+    if (this.pending) return this.pending;
+    const now = this.now();
+    if (this.ring && !force && now - this.fetchedAt < KEY_CACHE_TTL_MS) return this.ring;
+    if (now - this.lastAttempt < KEY_REFRESH_COOLDOWN_MS) {
+      if (this.ring && now - this.fetchedAt < KEY_CACHE_TTL_MS) return this.ring;
+      throw new Error("Verification keys temporarily unavailable");
+    }
+    this.lastAttempt = now;
+    this.pending = (async () => {
+      const ring = parseKeyRing(await this.fetchKeys());
+      this.ring = ring;
+      this.fetchedAt = this.now();
+      return ring;
+    })();
+    try { return await this.pending; }
+    finally { this.pending = undefined; }
+  }
+
+  async verify(input: VerifiablePrint): Promise<{ valid: boolean; verifiedWithKid: string | null }> {
+    const print = PrintSchema.parse(input);
+    canonicalPricePayload(print); // reject an inconsistent envelope before any request
+    const match = (ring: KeyRing): { valid: boolean; verifiedWithKid: string | null } => {
+      const candidates = print.kid !== undefined
+        ? [...ring.keys].filter(([kid]) => kid === print.kid) : [...ring.keys];
+      for (const [kid, pem] of candidates) {
+        if (verifySignature(print, pem)) return { valid: true, verifiedWithKid: kid || null };
+      }
+      return { valid: false, verifiedWithKid: null };
+    };
+    const first = await this.load();
+    const result = match(first);
+    if (result.valid) return result;
+    // One refresh at most for an unknown kid or a legacy signature after rotation.
+    const refreshed = await this.load(true);
+    return refreshed === first ? result : match(refreshed);
+  }
 }
 
 const asResult = (output: Record<string, unknown>) => ({
-  content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }],
-  structuredContent: output
+  content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }], structuredContent: output
 });
-const asError = (text: string) => ({ content: [{ type: "text" as const, text }], isError: true });
+const asError = (error: unknown) => ({ content: [{ type: "text" as const, text: describeApiError(error) }], isError: true });
+const readAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 
-// ── The server ─────────────────────────────────────────────────────────────
-const server = new McpServer({ name: "pulse-verity", version: "1.0.0" });
+export function createIndexServer(api: ApiClient = createApiClient(process.env.PULSE_API_KEY || "")): McpServer {
+  const server = new McpServer({ name: "pulse-verity", version: SERVER_VERSION });
+  const keys = new PublicKeyCache(() => api("/api/index/v1/pubkey"));
+  const read = async (path: ApiPath, params: Record<string, string>) => {
+    try { return asResult(await api(path, params)); }
+    catch (error) { return asError(error); }
+  };
 
-const SymbolSchema = z.string()
-  .min(2).max(15)
-  .regex(/^[A-Za-z0-9]+$/, "Symbols are plain tickers like BTC, ETH, PEPE")
-  .describe("Crypto ticker symbol, e.g. BTC, ETH, SOL, PEPE");
-
-server.registerTool(
-  "get_index_price",
-  {
+  server.registerTool("get_index_price", {
     title: "Get Pulse Verity Index Price",
-    description: `Get the current Pulse Verity Index value for a crypto symbol, cryptographically signed.
+    description: "Get a current signed crypto index price from /api/index/v1/price. Returns symbol, price, optional priceText, at, grade, signature, kid and sig. Preserve priceText exactly for verify_print. Optional tier, confidence, dispersionBps, interval, sources, engine and cadence describe the observation but are not covered by the v1 signature. Coverage changes: use list_index_assets to discover assets. A stale or unavailable response means no current price, never zero.",
+    inputSchema: { symbol: SymbolSchema }, annotations: readAnnotations
+  }, ({ symbol }) => read("/api/index/v1/price", { symbol }));
 
-The index is a blended value computed across multiple venues; only the blend is ever published. Every response is signed at read time, so it can be re-verified later with verify_print.
+  server.registerTool("get_index_batch", {
+    title: "Get Pulse Verity Index Batch",
+    description: "Read up to 100 crypto symbols in one /api/index/v1/batch request. Returns observations with individually signed successful rows and per-symbol errors for unavailable rows. Your API tier may allow fewer symbols. Verify each successful row with verify_print; surrounding batch and quality metadata are not signed. No automatic retries.",
+    inputSchema: { symbols: z.array(SymbolSchema).min(1).max(100) }, annotations: readAnnotations
+  }, ({ symbols }) => read("/api/index/v1/batch", { symbols: [...new Set(symbols.map((symbol) => symbol.toUpperCase()))].join(",") }));
 
-Args:
-  - symbol (string): crypto ticker, e.g. "BTC". GET /api/index/v1/symbols lists the full universe (~1,700 symbols).
+  server.registerTool("list_index_assets", {
+    title: "List Pulse Verity Index Assets",
+    description: "Read one bounded page from /api/index/v1/verity/catalog. Discover crypto symbols and their current coverage status and measured cadence. Catalog rows, prices and metadata are unsigned: use get_index_price or get_index_batch for signed receipts. Availability changes; total is a catalog count, not a count of fresh prices. No automatic pagination.",
+    inputSchema: {
+      limit: z.number().int().min(1).max(100).default(50),
+      offset: z.number().int().min(0).max(100_000).default(0),
+      band: z.enum(["real-time", "five-second", "ten-second", "slow", "unavailable"]).optional(),
+      status: z.enum(["consensus", "blended", "indicative", "insufficient-coverage", "venue-disagreement", "unconvertible-quote", "stale", "kernel-rejected"]).optional()
+    }, annotations: readAnnotations
+  }, ({ limit, offset, band, status }) => read("/api/index/v1/verity/catalog", {
+    limit: String(limit), offset: String(offset), ...(band ? { band } : {}), ...(status ? { status } : {})
+  }));
 
-Returns JSON:
-  {
-    "symbol": "BTC",
-    "price": 65123.45,        // the signed value — its exact wire string is what the signature covers
-    "at": "2026-08-27T10:00:00.000Z",  // the moment the claim is about
-    "grade": "composite",     // quality: composite (3+ venues) | blended (2) | single-source (1)
-    "signature": "…base64…",  // ECDSA P-256 signature — feed the whole object to verify_print
-    "sig": "pulse-index-v1"
-  }
-
-Errors: 404 UNSUPPORTED_SYMBOL for symbols outside the universe (equities like AAPL are never served); 503 STALE when no fresh value exists right now — the index refuses to serve a number it cannot stand behind, so treat STALE as "no answer", never as zero.`,
-    inputSchema: { symbol: SymbolSchema },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true }
-  },
-  async ({ symbol }) => {
-    try {
-      return asResult(await apiGet("/api/index/v1/price", { symbol }, true));
-    } catch (e) {
-      return asError(describeApiError(e));
-    }
-  }
-);
-
-server.registerTool(
-  "get_settlement_print",
-  {
+  server.registerTool("get_settlement_print", {
     title: "Get Settlement Print",
-    description: `Get the recorded, signed index print nearest a given moment — "what did the index say at time T".
-
-Prints are sampled every few seconds for actively served symbols and signed at record time, so the answer is byte-identical to what the live endpoint would have returned at that moment.
-
-Args:
-  - symbol (string): crypto ticker, e.g. "BTC".
-  - at (string): the moment to look up — ISO-8601 ("2026-08-27T10:00:00Z") or epoch milliseconds ("1787911200000").
-
-Returns JSON: the same shape as get_index_price plus:
-  {
-    "deltaMs": 2140   // honest distance between the requested time and the nearest print
-  }
-Always check deltaMs — a print minutes away from the requested time answers a different question than one 2 seconds away.
-
-Errors: 404 NO_PRINT when nothing is recorded near that time (a symbol starts recording once the API serves it; retention is bounded).`,
+    description: "Get the recorded signed index print nearest a requested time from /api/index/v1/print. Accepts ISO-8601 or epoch milliseconds. Check deltaMs: it is the distance between your requested time and the sampled print. Sampling and retention are bounded; a recorded print need not equal a separate live read. Preserve priceText and kid when present for verify_print. deltaMs and other metadata are not signed.",
     inputSchema: {
       symbol: SymbolSchema,
-      at: z.string().min(4).max(40).describe("ISO-8601 timestamp or epoch milliseconds")
-    },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  },
-  async ({ symbol, at }) => {
-    try {
-      return asResult(await apiGet("/api/index/v1/print", { symbol, at }, true));
-    } catch (e) {
-      return asError(describeApiError(e));
-    }
-  }
-);
+      at: SafeText(40).refine((value) => {
+        const time = /^\d{10,}$/.test(value) ? Number(value) : Date.parse(value);
+        return Number.isFinite(time) && !Number.isNaN(new Date(time).getTime());
+      }, "Expected ISO-8601 or epoch milliseconds")
+    }, annotations: { ...readAnnotations, idempotentHint: true }
+  }, ({ symbol, at }) => read("/api/index/v1/print", { symbol, at }));
 
-server.registerTool(
-  "verify_print",
-  {
+  server.registerTool("verify_print", {
     title: "Verify a Signed Print",
-    description: `Cryptographically verify a Pulse index print LOCALLY — no API round-trip decides the outcome.
-
-Rebuilds the canonical payload ("pulse-index-v1\\n<symbol>\\n<price>\\n<at>\\n<grade>") and checks the ECDSA P-256/SHA-256 signature against Pulse's published public key (fetched once from /api/index/v1/pubkey and cached). A print that verifies is proven to be exactly what Pulse signed; changing any field by even one character makes verification fail.
-
-Args (all from a get_index_price / get_settlement_print response, unchanged):
-  - symbol (string), price (string or number — the exact value as received), at (string), grade (string), signature (string, base64)
-
-Returns JSON:
-  { "valid": true | false, "checked": "<the canonical payload that was verified>", "keySource": "<pubkey endpoint>" }
-
-A false result means the print was altered, mixed up between two reads, or not signed by Pulse's current key. Note: if Pulse's status endpoint reports keyMode "ephemeral", prints from before the API's last restart will not verify — that is a key-rotation fact, not tampering.`,
-    inputSchema: {
-      symbol: z.string().min(1).max(20).describe("Symbol field of the print, verbatim"),
-      price: z.union([z.string(), z.number()]).describe("Price field of the print, verbatim — do not reformat or round"),
-      at: z.string().min(4).max(40).describe("Timestamp field of the print, verbatim"),
-      grade: z.string().min(1).max(20).describe("Grade field of the print, verbatim"),
-      signature: z.string().min(10).max(200).describe("Signature field of the print, base64")
-    },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  },
-  async (print) => {
+    description: "Verify a signed print locally with ECDSA P-256/SHA-256. Canonical bytes are pulse-index-v1\\n<symbol>\\n<priceText or String(price)>\\n<at>\\n<grade>. The public key ring is fetched from /api/index/v1/pubkey, cached for five minutes and refreshed at most once per 30 seconds on a failed check. A supplied kid selects only that exact key; old prints without kid are tried against the bounded published ring. No API key is sent to the public-key endpoint. valid=true authenticates only the canonical price fields, not kid, sig, quality, cadence, timestamps outside at, or other metadata. An invalid signature can mean an altered print or a key no longer published; it does not by itself prove tampering.",
+    inputSchema: PrintFields,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, async (print) => {
     try {
-      const pem = await pubkeyPem();
-      const valid = verifySignature(print as VerifiablePrint, pem);
-      return asResult({
-        valid,
-        checked: canonicalPricePayload(print as VerifiablePrint),
-        keySource: `${API_BASE}/api/index/v1/pubkey`
-      });
-    } catch (e) {
-      return asError(describeApiError(e));
-    }
-  }
-);
+      const result = await keys.verify(print);
+      return asResult({ ...result, checked: canonicalPricePayload(print), keySource: API_BASE + "/api/index/v1/pubkey", metadataSigned: false });
+    } catch (error) { return asError(error); }
+  });
+  return server;
+}
 
-// ── Entry ──────────────────────────────────────────────────────────────────
-// Only start the transport when run directly — the selftest imports this
-// module for its exported verification functions and must not boot a server.
+// Imports for offline verification never start a transport or require a key.
 const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-  if (!API_KEY) {
-    console.error("ERROR: PULSE_API_KEY is required. Create a free key at https://thepulse.markets/developers");
+  const apiKey = process.env.PULSE_API_KEY || "";
+  if (!apiKey || /[\s\x00-\x1f\x7f]/.test(apiKey)) {
+    console.error("ERROR: Set PULSE_API_KEY to a valid developer key from https://thepulse.markets/developers");
     process.exit(1);
   }
-  const transport = new StdioServerTransport();
-  server.connect(transport).then(
-    () => console.error(`Pulse Verity Index MCP server running (API: ${API_BASE})`),
-    (error: unknown) => { console.error("Server error:", error); process.exit(1); }
+  createIndexServer().connect(new StdioServerTransport()).then(
+    () => console.error("Pulse Verity Index MCP server " + SERVER_VERSION + " running"),
+    () => { console.error("Server connection failed."); process.exit(1); }
   );
 }

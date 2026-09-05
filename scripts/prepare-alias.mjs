@@ -27,4 +27,4 @@ canonical.files = ["dist/index.js", "README.md", "LICENSE", "SECURITY.md"];
 canonical.scripts = {};
 delete canonical.devDependencies;
 fs.writeFileSync(path.join(output, "package.json"), `${JSON.stringify(canonical, null, 2)}\n`);
-fs.writeFileSync(path.join(output, "README.md"), `# ${name}\n\nThis is a functional install alias for the **Pulse Verity Index** MCP server.\n\nUse the canonical package for new integrations:\n\n\`\`\`bash\nnpx -y pulse-verity\n\`\`\`\n\nThis alias runs the same three read-only tools as \`pulse-verity\`.\n`);
+fs.writeFileSync(path.join(output, "README.md"), `# ${name}\n\nThis is a functional install alias for the **Pulse Verity Index** MCP server.\n\nUse the canonical package for new integrations:\n\n\`\`\`bash\nnpx -y pulse-verity\n\`\`\`\n\nThis alias runs the same read-only tools as \`pulse-verity\`.\n`);
