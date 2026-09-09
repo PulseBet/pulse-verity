@@ -1,0 +1,20 @@
+# Smithery listing for the Pulse Verity Index MCP server.
+# A stdio server published on npm as `pulse-verity`. The only configuration
+# is the developer API key from https://thepulse.markets/developers.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - pulseApiKey
+    properties:
+      pulseApiKey:
+        type: string
+        title: Pulse API key
+        description: Pulse Verity Index developer API key (starts with pidx_) from thepulse.markets/developers
+  commandFunction: |-
+    (config) => ({
+      command: 'npx',
+      args: ['-y', 'pulse-verity'],
+      env: { PULSE_API_KEY: config.pulseApiKey }
+    })

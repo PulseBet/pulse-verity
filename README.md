@@ -43,6 +43,17 @@ For any stdio MCP client:
 }
 ```
 
+## Where to find it
+
+- npm: [`pulse-verity`](https://www.npmjs.com/package/pulse-verity)
+- Official MCP Registry: `io.github.PulseBet/pulse-verity`
+- Cursor: this repo ships a `.mcp.json`, so it installs from the Cursor MCP directory with your key filled in
+- Claude Desktop: add the JSON block above to `claude_desktop_config.json`
+- Smithery: `smithery.yaml` in this repo declares the stdio command and the one key it needs
+
+Every listing runs the same npm package. There is no hosted copy of the server; the
+key never leaves your machine except on the request to `thepulse.markets`.
+
 ## Security boundary
 
 - Read-only MCP tools only.
