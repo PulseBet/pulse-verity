@@ -43,6 +43,13 @@ For any stdio MCP client:
 }
 ```
 
+## Claude Desktop: one-click install
+
+Download [`pulse-verity-1.1.0.mcpb`](https://github.com/PulseBet/pulse-verity/raw/main/releases/pulse-verity-1.1.0.mcpb),
+open it with Claude Desktop (macOS or Windows), paste your `pidx_` key when asked, and the five tools appear in
+Claude. No terminal, no config file. The bundle is the same `dist/index.js` npm ships, packed with its two
+runtime dependencies; rebuild it with `npx @anthropic-ai/mcpb pack . releases/pulse-verity-<version>.mcpb`.
+
 ## Where to find it
 
 - npm: [`pulse-verity`](https://www.npmjs.com/package/pulse-verity)

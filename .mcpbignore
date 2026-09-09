@@ -1,0 +1,12 @@
+src/
+scripts/
+tsconfig.json
+dist/selftest.js
+.git/
+.github/
+*.mcpb
+glama.json
+smithery.yaml
+.mcp.json
+server.json
+package-lock.json

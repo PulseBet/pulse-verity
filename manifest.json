@@ -1,0 +1,54 @@
+{
+  "manifest_version": "0.3",
+  "name": "pulse-verity",
+  "display_name": "Pulse Verity Index",
+  "version": "1.1.0",
+  "description": "Signed, verifiable crypto index prices for 5,000+ assets. Read-only tools over the Pulse Verity Index API, plus local signature verification.",
+  "long_description": "Every price the Pulse Verity Index publishes is signed with ECDSA P-256 and can be verified against a public key. This extension gives Claude five read-only tools: the current signed price for one symbol, a batch of up to 100 symbols, the asset catalogue with coverage and cadence, the recorded print nearest a timestamp, and an offline verifier for any signed print. A free developer key from https://thepulse.markets/developers is required.",
+  "author": {
+    "name": "Pulse",
+    "email": "support@thepulse.markets",
+    "url": "https://thepulse.markets/developers"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PulseBet/pulse-verity.git"
+  },
+  "homepage": "https://thepulse.markets/developers",
+  "documentation": "https://github.com/PulseBet/pulse-verity#readme",
+  "support": "https://github.com/PulseBet/pulse-verity/issues",
+  "license": "MIT",
+  "keywords": ["crypto", "prices", "signed", "verifiable", "index", "bitcoin", "ethereum", "market-data", "oracle"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "PULSE_API_KEY": "${user_config.pulse_api_key}"
+      }
+    }
+  },
+  "user_config": {
+    "pulse_api_key": {
+      "type": "string",
+      "title": "Pulse API key",
+      "description": "Your developer key, starting with pidx_. Free at https://thepulse.markets/developers (60 requests a minute, no card).",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "tools": [
+    { "name": "get_index_price", "description": "Current signed index price for one crypto symbol" },
+    { "name": "get_index_batch", "description": "Signed prices for up to 100 symbols in one call" },
+    { "name": "list_index_assets", "description": "The asset catalogue with coverage status and measured cadence" },
+    { "name": "get_settlement_print", "description": "The recorded signed print nearest a requested time" },
+    { "name": "verify_print", "description": "Verify a signed print locally with ECDSA P-256/SHA-256" }
+  ],
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=18.0.0" }
+  }
+}
