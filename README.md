@@ -43,6 +43,46 @@ For any stdio MCP client:
 }
 ```
 
+## Hosted: nothing to install
+
+The same five tools run on Pulse's side at `https://pulseclone-production.up.railway.app/api/index/mcp`.
+
+- **Claude** (web, desktop, mobile): Settings → Connectors → Add custom connector → paste the URL → Connect, then sign in with your developer email and password.
+- **ChatGPT**: Settings → Connectors → Create → paste the URL. Same sign-in.
+- **Claude Code**: `claude mcp add --transport http pulse-verity https://pulseclone-production.up.railway.app/api/index/mcp --header "Authorization: Bearer pidx_your_key"`
+- **Any client with remote MCP support**: `{ "url": "https://pulseclone-production.up.railway.app/api/index/mcp", "headers": { "Authorization": "Bearer pidx_your_key" } }`
+
+Sign-in is standard OAuth 2.1 (dynamic registration, PKCE). Every hosted call meters against
+your key exactly like a REST call. Discovery documents live at `/.well-known/oauth-authorization-server`
+and `/.well-known/oauth-protected-resource/api/index/mcp`.
+
+## Install locally in other clients
+
+All of these run `npx -y pulse-verity` with `PULSE_API_KEY` in the environment.
+
+**Codex CLI** — `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.pulse-verity]
+command = "npx"
+args = ["-y", "pulse-verity"]
+env = { PULSE_API_KEY = "pidx_your_key" }
+```
+
+**Windsurf** — `~/.codeium/windsurf/mcp_config.json`, and **Cursor** — `~/.cursor/mcp.json`:
+
+```json
+{ "mcpServers": { "pulse-verity": { "command": "npx", "args": ["-y", "pulse-verity"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+```
+
+**VS Code (Copilot agent mode)** — `.vscode/mcp.json`:
+
+```json
+{ "servers": { "pulse-verity": { "type": "stdio", "command": "npx", "args": ["-y", "pulse-verity"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+```
+
+**Gemini CLI** — `~/.gemini/settings.json`, same `mcpServers` block as Cursor.
+
 ## Claude Desktop: one-click install
 
 Download [`pulse-verity-1.1.0.mcpb`](https://github.com/PulseBet/pulse-verity/raw/main/releases/pulse-verity-1.1.0.mcpb),
