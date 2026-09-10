@@ -1,20 +1,30 @@
 # Smithery listing for the Pulse Verity Index MCP server.
-# A stdio server published on npm as `pulse-verity`. The only configuration
-# is the developer API key from https://thepulse.markets/developers.
+# A stdio server published on npm as `pulse-verity`.
+#
+# The API key is OPTIONAL. With no key the server starts and answers
+# get_index_price for BTC, ETH and SOL from the free sample, signed and
+# verifiable exactly like a keyed read. A free key from
+# https://thepulse.markets/developers unlocks the full catalog, batch reads,
+# settlement prints and signature verification.
 startCommand:
   type: stdio
   configSchema:
     type: object
-    required:
-      - pulseApiKey
+    required: []
     properties:
       pulseApiKey:
         type: string
-        title: Pulse API key
-        description: Pulse Verity Index developer API key (starts with pidx_) from thepulse.markets/developers
+        title: Pulse API key (optional)
+        description: >-
+          Optional. Leave blank to try the free sample (BTC, ETH, SOL). A free
+          developer key (starts with pidx_) from thepulse.markets/developers
+          unlocks 4,800+ assets, batch reads, settlement prints and
+          signature verification.
   commandFunction: |-
     (config) => ({
       command: 'npx',
       args: ['-y', 'pulse-verity'],
-      env: { PULSE_API_KEY: config.pulseApiKey }
+      env: (config && config.pulseApiKey)
+        ? { PULSE_API_KEY: config.pulseApiKey }
+        : {}
     })
