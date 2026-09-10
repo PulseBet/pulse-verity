@@ -1,6 +1,6 @@
 {
   "name": "pulse-verity",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "mcpName": "io.github.PulseBet/pulse-verity",
   "description": "Read-only MCP server for signed, verifiable Pulse Verity Index crypto prices",
   "license": "MIT",
@@ -18,10 +18,11 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "npm run build && node dist/selftest.js && node scripts/words-test.mjs",
+    "test": "npm run build && node dist/selftest.js && node scripts/words-test.mjs && node scripts/keyless-test.mjs",
     "check:words": "node scripts/words-test.mjs",
     "prepare:alias": "node scripts/prepare-alias.mjs",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "check:keyless": "node scripts/keyless-test.mjs"
   },
   "engines": {
     "node": ">=18"

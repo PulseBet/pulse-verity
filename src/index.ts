@@ -6,7 +6,7 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 
-export const SERVER_VERSION = "1.1.0";
+export const SERVER_VERSION = "1.2.0";
 export const API_BASE = "https://pulseclone-production.up.railway.app";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const MAX_RESPONSE_BYTES = 1_048_576;
@@ -17,8 +17,24 @@ export const MAX_VERIFICATION_KEYS = 16;
 
 const API_PATHS = [
   "/api/index/v1/price", "/api/index/v1/batch", "/api/index/v1/print",
-  "/api/index/v1/verity/catalog", "/api/index/v1/pubkey"
+  "/api/index/v1/verity/catalog", "/api/index/v1/pubkey",
+  // The keyless taste. Reached only when PULSE_API_KEY is absent; see the
+  // routing in createApiClient and the boot note at the bottom of this file.
+  "/api/index/v1/sample"
 ] as const;
+
+/** Assets the keyless sample covers. Everything else needs a free key. */
+export const SAMPLE_SYMBOLS = ["BTC", "ETH", "SOL"];
+
+/** Thrown when an unkeyed caller asks for something the sample cannot serve.
+ *  Its message is passed through to the tool result verbatim — that is the
+ *  whole point: the invitation has to appear where the developer is looking. */
+export class NeedsKey extends Error {}
+
+const NEEDS_KEY_TEXT =
+  "This needs a free Pulse Verity developer key. Get one in under a minute at " +
+  "https://thepulse.markets/developers, then set PULSE_API_KEY and restart. " +
+  "Without a key this server still answers get_index_price for " + SAMPLE_SYMBOLS.join(", ") + ".";
 type ApiPath = typeof API_PATHS[number];
 export type ApiClient = (path: ApiPath, params?: Record<string, string>) => Promise<Record<string, unknown>>;
 
@@ -120,14 +136,28 @@ export function describeApiError(error: unknown): string {
       default: return "Error: the Pulse Verity Index API returned HTTP " + error.status + ".";
     }
   }
+  // A missing key is not a failure to hide behind a generic sentence — it is
+  // the one message that has to reach the person, so it passes through whole.
+  if (error instanceof NeedsKey) return error.message;
   return "Error: the Pulse Verity Index request or verification could not complete. Check the inputs and connection, then retry shortly.";
 }
 
 export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): ApiClient {
   return async (path, params = {}) => {
     if (!API_PATHS.includes(path)) throw new Error("Unsupported API path");
-    const keyed = path !== "/api/index/v1/pubkey";
-    if (keyed && (!apiKey || /[\s\x00-\x1f\x7f]/.test(apiKey))) throw new Error("Invalid API key configuration");
+    const hasKey = !!apiKey && !/[\s\x00-\x1f\x7f]/.test(apiKey);
+    // Without a key: a current price for a major becomes the public sample,
+    // and everything else says so in words the caller will actually read.
+    if (!hasKey && path !== "/api/index/v1/pubkey") {
+      const symbol = String(params.symbol || "").toUpperCase();
+      if (path === "/api/index/v1/price" && SAMPLE_SYMBOLS.includes(symbol)) {
+        path = "/api/index/v1/sample" as ApiPath;
+        params = { symbol };
+      } else {
+        throw new NeedsKey(NEEDS_KEY_TEXT);
+      }
+    }
+    const keyed = hasKey && path !== "/api/index/v1/pubkey" && path !== "/api/index/v1/sample";
     const query = new URLSearchParams(params).toString();
     const response = await fetcher(API_BASE + path + (query ? "?" + query : ""), {
       method: "GET",
@@ -315,13 +345,32 @@ export function createIndexServer(api: ApiClient = createApiClient(process.env.P
 // Imports for offline verification never start a transport or require a key.
 const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
+  // ── NEVER EXIT BECAUSE A KEY IS MISSING ────────────────────────────────
+  //
+  // Until 10 Sep this block did exactly that: no PULSE_API_KEY meant a line
+  // on stderr and process.exit(1). 745 downloads produced ZERO signups, and
+  // this is why. An MCP server that exits during startup appears in Claude
+  // Desktop and Cursor as a red dot reading "disconnected"; stderr goes to a
+  // log file (~/Library/Logs/Claude/mcp-server-pulse-verity.log) that nobody
+  // opens. So the one sentence telling a developer where to get a key was
+  // written somewhere they would never look, and every install hit a wall it
+  // could not read.
+  //
+  // The server now always starts. Without a key it serves a small keyless
+  // sample — real current prices for BTC, ETH and SOL — and the invitation to
+  // sign up is returned as TOOL OUTPUT, which appears in the conversation, in
+  // front of the person, at the moment they are trying to use it.
+  //
+  // Show the thing working before asking for anything. A wall you cannot read
+  // is indistinguishable from a broken product.
   const apiKey = process.env.PULSE_API_KEY || "";
-  if (!apiKey || /[\s\x00-\x1f\x7f]/.test(apiKey)) {
-    console.error("ERROR: Set PULSE_API_KEY to a valid developer key from https://thepulse.markets/developers");
-    process.exit(1);
-  }
+  const keyed = !!apiKey && !/[\s\x00-\x1f\x7f]/.test(apiKey);
   createIndexServer().connect(new StdioServerTransport()).then(
-    () => console.error("Pulse Verity Index MCP server " + SERVER_VERSION + " running"),
+    () => console.error(
+      "Pulse Verity Index MCP server " + SERVER_VERSION + " running" +
+      (keyed ? " (developer key detected)"
+             : " — NO KEY: serving the free sample (BTC, ETH, SOL). Free key: https://thepulse.markets/developers")
+    ),
     () => { console.error("Server connection failed."); process.exit(1); }
   );
 }
