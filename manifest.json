@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "pulse-verity",
   "display_name": "Pulse Verity Index",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Signed, verifiable crypto index prices for 4,800+ assets. Starts with no API key — BTC, ETH and SOL work immediately. Read-only tools over the Pulse Verity Index API, plus local signature verification.",
   "long_description": "Every price the Pulse Verity Index publishes is signed with ECDSA P-256 and can be verified against a public key. This extension gives Claude five read-only tools: the current signed price for one symbol, a batch of up to 100 symbols, the asset catalogue with coverage and cadence, the recorded print nearest a timestamp, and an offline verifier for any signed print.\n\nNo API key is required to start. Without one the extension serves real, signed current prices for BTC, ETH and SOL. A free developer key from https://thepulse.markets/developers unlocks the full catalogue, batch reads, settlement prints and signature verification.",
   "author": {

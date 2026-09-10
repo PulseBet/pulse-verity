@@ -56,12 +56,12 @@ For any stdio MCP client:
 
 ## Hosted: nothing to install
 
-The same five tools run on Pulse's side at `https://pulseclone-production.up.railway.app/api/index/mcp`.
+The same five tools run on Pulse's side at `https://mcp.thepulse.markets/api/index/mcp`.
 
 - **Claude** (web, desktop, mobile): Settings → Connectors → Add custom connector → paste the URL → Connect, then sign in with your developer email and password.
 - **ChatGPT**: Settings → Connectors → Create → paste the URL. Same sign-in.
-- **Claude Code**: `claude mcp add --transport http pulse-verity https://pulseclone-production.up.railway.app/api/index/mcp --header "Authorization: Bearer pidx_your_key"`
-- **Any client with remote MCP support**: `{ "url": "https://pulseclone-production.up.railway.app/api/index/mcp", "headers": { "Authorization": "Bearer pidx_your_key" } }`
+- **Claude Code**: `claude mcp add --transport http pulse-verity https://mcp.thepulse.markets/api/index/mcp --header "Authorization: Bearer pidx_your_key"`
+- **Any client with remote MCP support**: `{ "url": "https://mcp.thepulse.markets/api/index/mcp", "headers": { "Authorization": "Bearer pidx_your_key" } }`
 
 Sign-in is standard OAuth 2.1 (dynamic registration, PKCE). Every hosted call meters against
 your key exactly like a REST call. Discovery documents live at `/.well-known/oauth-authorization-server`
