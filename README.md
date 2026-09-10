@@ -14,14 +14,25 @@ It exposes five read-only tools:
 | `verify_print(print)` | Verify a print locally with ECDSA and the published public key. |
 
 There are no write tools. This package contains no Pulse platform engine code.
-It only calls the public Pulse Verity Index API. The developer supplies their
-own API key through `PULSE_API_KEY`.
+It only calls the public Pulse Verity Index API.
 
-## Install
+## Try it without a key
 
-Create a developer API key at
-[thepulse.markets/developers](https://thepulse.markets/developers), then add the
-server to your MCP client:
+The server starts and answers with no configuration at all. Keyless, it serves
+`get_index_price` for BTC, ETH and SOL from the free sample:
+
+```bash
+claude mcp add pulse-verity -- npx -y pulse-verity
+```
+
+Then ask your agent for the Bitcoin index price. Every answer is signed and
+verifiable, exactly like a keyed one.
+
+## Add a key for everything else
+
+A free key unlocks 4,800+ assets, batch reads, settlement prints and signature
+verification. It takes about a minute at
+[thepulse.markets/developers](https://thepulse.markets/developers):
 
 ```bash
 claude mcp add pulse-verity \
