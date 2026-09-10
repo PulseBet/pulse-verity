@@ -17,6 +17,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build && node dist/selftest.js",
     "start": "node dist/index.js",
     "test": "npm run build && node dist/selftest.js && node scripts/words-test.mjs && node scripts/keyless-test.mjs",
     "check:words": "node scripts/words-test.mjs",
