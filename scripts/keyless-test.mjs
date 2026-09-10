@@ -6,7 +6,7 @@
 //
 // These checks pin the behaviour that replaces it, from the outside.
 import assert from 'node:assert/strict';
-import { createApiClient, createIndexServer, SAMPLE_SYMBOLS, NeedsKey } from '../dist/index.js';
+import { createApiClient, createIndexServer, SAMPLE_SYMBOLS, NeedsKey, hasUsableKey } from '../dist/index.js';
 
 let pass = 0;
 const ok = (name, cond, detail = '') => {
@@ -67,5 +67,22 @@ const ok = (name, cond, detail = '') => {
   const server = createIndexServer(createApiClient(''));
   ok('createIndexServer works with no key at all', !!server);
 }
+
+
+// An installer template that never expanded must read as NO key, not as a key.
+// Claude Desktop's manifest sets PULSE_API_KEY to "${user_config.pulse_api_key}";
+// a blank field can pass that literal through. Treating it as a key sends it,
+// earns a 401, and shows "the API key was refused" instead of the sample.
+ok("unexpanded desktop template is not a key",
+  hasUsableKey("${user_config.pulse_api_key}") === false);
+ok("unexpanded generic template is not a key",
+  hasUsableKey("${PULSE_API_KEY}") === false);
+ok("documented placeholder is not a key",
+  hasUsableKey("pidx_your_key_here") === false);
+ok("placeholder is case-insensitive",
+  hasUsableKey("PIDX_YOUR_KEY_HERE") === false);
+ok("empty string is not a key", hasUsableKey("") === false);
+ok("whitespace is not a key", hasUsableKey("pidx_a b") === false);
+ok("a real-looking key IS a key", hasUsableKey("pidx_9f3a2b7c") === true);
 
 console.log(`keyless onboarding: ${pass} passed${process.exitCode ? ' — WITH FAILURES' : ', 0 failed'}`);

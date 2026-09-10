@@ -142,10 +142,33 @@ export function describeApiError(error: unknown): string {
   return "Error: the Pulse Verity Index request or verification could not complete. Check the inputs and connection, then retry shortly.";
 }
 
+/** True when PULSE_API_KEY holds something that could actually be a key.
+ *
+ * Absent and malformed both mean "serve the sample". The subtle case is a
+ * one-click installer whose template never expanded: Claude Desktop's manifest
+ * sets PULSE_API_KEY to "${user_config.pulse_api_key}", and if the user leaves
+ * the field blank some hosts pass that literal through. It contains no
+ * whitespace, so a naive check calls it a key, sends it, and the person gets
+ * "the API key was refused" instead of the working sample — the 1.1.0 failure
+ * wearing a different hat. An unexpanded template and the documented
+ * copy-paste placeholders are treated as no key at all.
+ */
+export function hasUsableKey(apiKey: string): boolean {
+  if (!apiKey) return false;
+  if (/[\s\x00-\x1f\x7f]/.test(apiKey)) return false;
+  if (apiKey.includes("${")) return false;
+  return !PLACEHOLDER_KEYS.has(apiKey.toLowerCase());
+}
+
+const PLACEHOLDER_KEYS = new Set([
+  "pidx_your_key_here", "your_key_here", "your_api_key", "your-api-key",
+  "pidx_", "changeme", "xxx", "none", "null", "undefined"
+]);
+
 export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): ApiClient {
   return async (path, params = {}) => {
     if (!API_PATHS.includes(path)) throw new Error("Unsupported API path");
-    const hasKey = !!apiKey && !/[\s\x00-\x1f\x7f]/.test(apiKey);
+    const hasKey = hasUsableKey(apiKey);
     // Without a key: a current price for a major becomes the public sample,
     // and everything else says so in words the caller will actually read.
     if (!hasKey && path !== "/api/index/v1/pubkey") {
@@ -364,7 +387,7 @@ if (isMain) {
   // Show the thing working before asking for anything. A wall you cannot read
   // is indistinguishable from a broken product.
   const apiKey = process.env.PULSE_API_KEY || "";
-  const keyed = !!apiKey && !/[\s\x00-\x1f\x7f]/.test(apiKey);
+  const keyed = hasUsableKey(apiKey);
   createIndexServer().connect(new StdioServerTransport()).then(
     () => console.error(
       "Pulse Verity Index MCP server " + SERVER_VERSION + " running" +
