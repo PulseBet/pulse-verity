@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pulse-verity": {
+      "command": "npx",
+      "args": ["-y", "pulse-verity@1.2.3"],
+      "env": {
+        "PULSE_API_KEY": "${PULSE_API_KEY}"
+      }
+    }
+  }
+}

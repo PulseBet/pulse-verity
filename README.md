@@ -69,6 +69,23 @@ and `/.well-known/oauth-protected-resource/api/index/mcp`.
 
 ## Install locally in other clients
 
+### Cursor marketplace package
+
+This repository includes `.cursor-plugin/plugin.json` and `mcp.json` for
+Cursor's plugin loader. The plugin starts the released `pulse-verity@1.2.3`
+package with `npx`; Node.js 18 or newer is required. No platform engine code
+or private repository access is included.
+
+The `PULSE_API_KEY` variable is optional and defaults to an empty string, so
+BTC, ETH and SOL samples work without a key. Configure a free key through
+Cursor's plugin configuration to enable catalogue, batch and settlement-print
+requests. Never put a real key in these repository files.
+
+Marketplace availability is subject to Cursor's review. The configuration
+below remains available for manual MCP installation.
+
+### Manual MCP configuration
+
 All of these run `npx -y pulse-verity` with `PULSE_API_KEY` in the environment.
 
 **Codex CLI** — `~/.codex/config.toml`:
@@ -96,21 +113,23 @@ env = { PULSE_API_KEY = "pidx_your_key" }
 
 ## Claude Desktop: one-click install
 
-Download [`pulse-verity-1.1.0.mcpb`](https://github.com/PulseBet/pulse-verity/raw/main/releases/pulse-verity-1.1.0.mcpb),
-open it with Claude Desktop (macOS or Windows), paste your `pidx_` key when asked, and the five tools appear in
-Claude. No terminal, no config file. The bundle is the same `dist/index.js` npm ships, packed with its two
-runtime dependencies; rebuild it with `npx @anthropic-ai/mcpb pack . releases/pulse-verity-<version>.mcpb`.
+Download [`pulse-verity-1.2.3.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.2.3/pulse-verity-1.2.3.mcpb),
+open it with Claude Desktop (macOS or Windows), and leave the optional key blank
+to try BTC, ETH and SOL. Add a free key for catalogue, batch and settlement-print
+requests. The bundle contains the same `dist/index.js` npm ships, with its runtime
+dependencies. Existing downloaded bundles must be replaced with the new release.
 
 ## Where to find it
 
 - npm: [`pulse-verity`](https://www.npmjs.com/package/pulse-verity)
 - Official MCP Registry: `io.github.PulseBet/pulse-verity`
-- Cursor: this repo ships a `.mcp.json`, so it installs from the Cursor MCP directory with your key filled in
+- Cursor: `.cursor-plugin/plugin.json` packages the MCP for marketplace review; manual MCP configuration is shown above
 - Claude Desktop: add the JSON block above to `claude_desktop_config.json`
 - Smithery: `smithery.yaml` in this repo declares the stdio command and the one key it needs
 
-Every listing runs the same npm package. There is no hosted copy of the server; the
-key never leaves your machine except on the request to `thepulse.markets`.
+Local installations run the same npm package and send a configured developer
+key only to the pinned Pulse Verity API. The separate hosted MCP endpoint is
+documented above.
 
 ## Security boundary
 
@@ -169,6 +188,9 @@ prices are not zero. API tier limits can be lower than the tool's batch limit.
 npm ci
 npm test
 ```
+
+`npm run check:cursor` checks the Cursor manifest, optional-key configuration,
+package-version pin and logo without building or making network requests.
 
 The offline suite compiles this small MCP package, exercises exact-price and
 rotated-key verification, tests MCP tool bounds and mocked HTTP limits, and runs

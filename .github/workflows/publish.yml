@@ -40,3 +40,40 @@ jobs:
       # npm exchanges GitHub's short-lived OIDC identity for publish authority.
       # No long-lived NPM_TOKEN is available to this job.
       - run: npm publish --access public
+
+  publish-desktop-bundle:
+    needs: publish-canonical
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Build and validate versioned desktop bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          MCPB_VERSION="$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).version')"
+          MCPB_STAGE="$(mktemp -d "$RUNNER_TEMP/pulse-mcpb.XXXXXX")"
+          mkdir -p "$MCPB_STAGE/dist"
+          cp package.json package-lock.json manifest.json README.md LICENSE SECURITY.md .mcpbignore "$MCPB_STAGE/"
+          cp dist/index.js "$MCPB_STAGE/dist/"
+          npm ci --omit=dev --ignore-scripts --prefix "$MCPB_STAGE"
+          npx --yes --package=@anthropic-ai/mcpb@2.1.2 mcpb validate "$MCPB_STAGE/manifest.json"
+          npx --yes --package=@anthropic-ai/mcpb@2.1.2 mcpb pack "$MCPB_STAGE" "$RUNNER_TEMP/pulse-verity-$MCPB_VERSION.mcpb"
+          unzip -t "$RUNNER_TEMP/pulse-verity-$MCPB_VERSION.mcpb"
+      - name: Publish immutable desktop release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          MCPB_VERSION="$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).version')"
+          gh release create "v$MCPB_VERSION" "$RUNNER_TEMP/pulse-verity-$MCPB_VERSION.mcpb" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Pulse Verity $MCPB_VERSION" \
+            --notes "Fix npm executable startup, add Cursor plugin packaging, and synchronize optional-key release metadata. Includes startup and packaging regression tests."

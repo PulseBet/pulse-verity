@@ -4,9 +4,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import crypto from "node:crypto";
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-export const SERVER_VERSION = "1.2.2";
+export const SERVER_VERSION = "1.2.3";
 export const API_BASE = "https://mcp.thepulse.markets";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const MAX_RESPONSE_BYTES = 1_048_576;
@@ -366,7 +367,14 @@ export function createIndexServer(api: ApiClient = createApiClient(process.env.P
 }
 
 // Imports for offline verification never start a transport or require a key.
-const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+})();
 if (isMain) {
   // ── NEVER EXIT BECAUSE A KEY IS MISSING ────────────────────────────────
   //
