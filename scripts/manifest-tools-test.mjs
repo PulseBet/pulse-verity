@@ -55,15 +55,16 @@ ok('the manifest lists every tool the server registers, and no others',
 for (const t of manifest.tools || []) {
   ok(`${t.name}: has a name`, typeof t.name === 'string' && t.name.length > 0);
   ok(`${t.name}: has a description`, typeof t.description === 'string' && t.description.length > 0);
-  // The one that broke the publish. "expected object, received undefined".
-  ok(`${t.name}: inputSchema is an object, not undefined`,
-    !!t.inputSchema && typeof t.inputSchema === 'object' && !Array.isArray(t.inputSchema));
-  ok(`${t.name}: inputSchema declares an object type`,
-    t.inputSchema?.type === 'object');
-  const liveTool = live.find(l => l.name === t.name);
-  ok(`${t.name}: schema accepts the same arguments the server does`,
-    JSON.stringify(Object.keys(t.inputSchema?.properties || {}).sort()) ===
-    JSON.stringify(Object.keys(liveTool?.inputSchema?.properties || {}).sort()));
+  // NOT inputSchema. The MCPB format forbids it outright — the packer refuses
+  // with "Unrecognized key(s) in object: 'inputSchema'" and will not build the
+  // bundle. Smithery's API wants one. The two disagree, and the bundle we ship
+  // has to satisfy the packer, so this asserts the ABSENCE: if someone adds a
+  // schema here to please a directory, the build breaks and they should know
+  // why before they find out from a failed pack.
+  ok(`${t.name}: carries no inputSchema, which mcpb rejects`,
+    t.inputSchema === undefined);
+  ok(`${t.name}: carries only the keys mcpb allows`,
+    Object.keys(t).every(k => k === 'name' || k === 'description'));
 }
 
 console.log(`manifest tools: ${pass} passed, ${fail} failed`);
