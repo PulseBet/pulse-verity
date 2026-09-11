@@ -17,6 +17,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -38,13 +39,20 @@ jobs:
               -C "$RUNNER_TEMP/verity-gemini/stage" gemini-extension.json README.md LICENSE SECURITY.md
             tar -tzf "$RUNNER_TEMP/verity-gemini/assets/$platform.pulse-verity.tar.gz"
           done
+      - name: Install Gemini CLI
+        timeout-minutes: 3
+        run: npm install --global @google/gemini-cli@0.59.0
       - name: Validate installation with Gemini CLI
+        timeout-minutes: 2
         shell: bash
         run: |
           set -euo pipefail
-          npm install --global @google/gemini-cli@0.59.0
-          gemini extensions install "$RUNNER_TEMP/verity-gemini/stage" --consent --skip-settings
+          # Approve only the reviewed, ephemeral extension folder staged above.
+          printf 'y\n' | gemini extensions install "$RUNNER_TEMP/verity-gemini/stage" --consent --skip-settings
           gemini extensions list
+      - name: Check installed MCP tools
+        timeout-minutes: 2
+        run: |
           node scripts/gemini-extension-smoke.mjs "$HOME/.gemini/extensions/pulse-verity/gemini-extension.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -56,6 +64,7 @@ jobs:
     needs: verify
     if: github.event_name == 'workflow_dispatch' && inputs.publish_assets && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:
@@ -77,6 +86,7 @@ jobs:
   verify-published:
     needs: publish
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -85,11 +95,14 @@ jobs:
         with:
           node-version: 24
       - run: npm ci --ignore-scripts
+      - name: Install Gemini CLI
+        timeout-minutes: 3
+        run: npm install --global @google/gemini-cli@0.59.0
       - name: Test the default public Gemini installation and keyless tools
+        timeout-minutes: 3
         shell: bash
         run: |
           set -euo pipefail
-          npm install --global @google/gemini-cli@0.59.0
           gemini extensions install "https://github.com/$GITHUB_REPOSITORY" --consent --skip-settings
           gemini extensions list
           node scripts/gemini-extension-smoke.mjs "$HOME/.gemini/extensions/pulse-verity/gemini-extension.json" --live

@@ -59,3 +59,10 @@ test("Gemini archives cover each supported platform without replacing the deskto
   assert(!workflow.includes("npm publish"));
   assert(workflow.includes("github.ref == 'refs/heads/main'"));
 });
+
+test("CI bounds installation waits and approves only its staged local extension", () => {
+  const workflow = read(".github/workflows/gemini-extension.yml");
+  assert(workflow.includes("timeout-minutes: 2"));
+  assert(workflow.includes("printf 'y\\n' | gemini extensions install \"$RUNNER_TEMP/verity-gemini/stage\""));
+  assert(!workflow.includes("folderTrust.enabled: false"));
+});
