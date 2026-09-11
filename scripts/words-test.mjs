@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-const files = ["src/index.ts", "README.md", "server.json", "package.json"];
+const files = ["src/index.ts", "README.md", "server.json", "package.json", "gemini-extension.json"];
 const banned = /\b(bet|bets|betting|wager|wagers|wagered|wagering|gamble|gambles|gambling|gambler|casino|casinos|odds|punt|punts|bookie|bookies|jackpot|jackpots|stake|stakes|staked|staking)\b/i;
 
 const failures = [];

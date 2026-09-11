@@ -19,13 +19,14 @@
     "build": "tsc",
     "prepublishOnly": "npm run build && node dist/selftest.js && node scripts/entrypoint-test.mjs",
     "start": "node dist/index.js",
-    "test": "npm run build && node dist/selftest.js && node scripts/words-test.mjs && node scripts/keyless-test.mjs && node scripts/manifest-tools-test.mjs && node scripts/cursor-plugin-test.mjs && node scripts/entrypoint-test.mjs",
+    "test": "npm run build && node dist/selftest.js && node scripts/words-test.mjs && node scripts/keyless-test.mjs && node scripts/manifest-tools-test.mjs && node scripts/cursor-plugin-test.mjs && node scripts/gemini-extension-test.mjs && node scripts/entrypoint-test.mjs",
     "check:words": "node scripts/words-test.mjs",
     "prepare:alias": "node scripts/prepare-alias.mjs",
     "clean": "rm -rf dist",
     "check:keyless": "node scripts/keyless-test.mjs",
     "check:manifest": "node scripts/manifest-tools-test.mjs",
-    "check:cursor": "node scripts/cursor-plugin-test.mjs"
+    "check:cursor": "node scripts/cursor-plugin-test.mjs",
+    "check:gemini": "node scripts/gemini-extension-test.mjs"
   },
   "engines": {
     "node": ">=18"

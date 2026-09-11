@@ -84,6 +84,36 @@ requests. Never put a real key in these repository files.
 Marketplace availability is subject to Cursor's review. The configuration
 below remains available for manual MCP installation.
 
+### Gemini CLI extension
+
+Install the public extension without an API-key prompt:
+
+```bash
+gemini extensions install https://github.com/PulseBet/pulse-verity --skip-settings
+```
+
+Restart Gemini CLI, then ask for the current Bitcoin index price. The extension
+starts the released `pulse-verity@1.2.3` package through `npx`; Node.js and npm
+must be available. BTC, ETH and SOL samples work without a key. Gemini may warn
+that the optional setting is unset; that does not prevent keyless startup.
+
+To enable catalogue, batch and settlement-print requests, configure a free key
+using Gemini's sensitive-setting prompt, then restart the CLI:
+
+```bash
+gemini extensions config pulse-verity PULSE_API_KEY
+```
+
+Do not add a real key to this repository or assume an exported shell variable
+will pass through Gemini's environment filtering. The extension declares only
+`PULSE_API_KEY`, stored through Gemini's sensitive settings.
+
+The root `gemini-extension.json` is the gallery manifest. The release includes
+separate `darwin`, `linux` and `win32` archives for Gemini's download selection;
+the Claude Desktop `.mcpb` remains separate. Gallery indexing is handled by
+Google and is not immediate or guaranteed. This is a Gemini CLI extension,
+not a listing in the consumer Gemini chat app.
+
 ### Manual MCP configuration
 
 All of these run `npx -y pulse-verity` with `PULSE_API_KEY` in the environment.
@@ -124,6 +154,7 @@ dependencies. Existing downloaded bundles must be replaced with the new release.
 - npm: [`pulse-verity`](https://www.npmjs.com/package/pulse-verity)
 - Official MCP Registry: `io.github.PulseBet/pulse-verity`
 - Cursor: `.cursor-plugin/plugin.json` packages the MCP for marketplace review; manual MCP configuration is shown above
+- Gemini CLI: `gemini-extension.json` packages the public MCP for the extension gallery and GitHub installation
 - Claude Desktop: add the JSON block above to `claude_desktop_config.json`
 - Smithery: `smithery.yaml` in this repo declares the stdio command and the one key it needs
 
@@ -191,6 +222,12 @@ npm test
 
 `npm run check:cursor` checks the Cursor manifest, optional-key configuration,
 package-version pin and logo without building or making network requests.
+`npm run check:gemini` checks the Gemini manifest, optional sensitive setting,
+version pin and release configuration without building or network requests.
+The Gemini extension workflow runs the complete suite, installs with Gemini CLI,
+and checks the installed manifest's five read-only MCP tools. Its manual release
+step adds new Gemini archives to an existing release without replacing assets;
+the post-release check reads one public BTC sample and verifies its signature.
 
 The offline suite compiles this small MCP package, exercises exact-price and
 rotated-key verification, tests MCP tool bounds and mocked HTTP limits, and runs
