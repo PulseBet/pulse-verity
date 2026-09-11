@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -16,7 +18,9 @@ const env = {};
 for (const name of ["PATH", "HOME", "USERPROFILE", "SystemRoot", "TEMP", "TMP", "TMPDIR"])
   if (process.env[name]) env[name] = process.env[name];
 
-const transport = new StdioClientTransport({ ...config, env, stderr: "pipe" });
+// A clean working directory makes npx resolve the published package, not this checkout.
+const cleanCwd = mkdtempSync(join(tmpdir(), "verity-gemini-smoke-"));
+const transport = new StdioClientTransport({ ...config, env, cwd: cleanCwd, stderr: "inherit" });
 const client = new Client({ name: "verity-gemini-check", version: pkg.version });
 const deadline = setTimeout(() => {
   console.error("Gemini MCP smoke timed out");
@@ -51,4 +55,5 @@ try {
 } finally {
   clearTimeout(deadline);
   await client.close();
+  rmdirSync(cleanCwd);
 }
