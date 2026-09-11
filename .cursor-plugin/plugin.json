@@ -1,6 +1,6 @@
 {
   "name": "pulse-verity",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Signed, verifiable crypto index prices across 4,800+ assets. Try BTC, ETH and SOL without an API key; a free key unlocks the full catalogue, batch reads and settlement prints, subject to usage limits.",
   "author": {
     "name": "Pulse"

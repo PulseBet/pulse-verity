@@ -6,8 +6,10 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { readQuotaDetails, quotaErrorGuidance } from "./quotaError.js";
+import type { QuotaDetails } from "./quotaError.js";
 
-export const SERVER_VERSION = "1.2.3";
+export const SERVER_VERSION = "1.2.4";
 export const API_BASE = "https://mcp.thepulse.markets";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const MAX_RESPONSE_BYTES = 1_048_576;
@@ -105,9 +107,9 @@ export function verifySignature(input: VerifiablePrint, publicKeyPem: string): b
 }
 
 // API origin and paths are pinned. Redirects never receive the developer key.
-// Errors deliberately exclude response bodies, headers and raw fetch errors.
+// Errors retain only allowlisted quota metadata, never raw upstream text or links.
 export class ApiFailure extends Error {
-  constructor(readonly status: number) { super("HTTP " + status); }
+  constructor(readonly status: number, readonly quota: QuotaDetails = {}) { super("HTTP " + status); }
 }
 
 export function redactCredentials(value: string, apiKey = ""): string {
@@ -132,7 +134,7 @@ export function describeApiError(error: unknown): string {
       case 401: return "Error: the API key was refused. Set PULSE_API_KEY to a valid key from thepulse.markets/developers.";
       case 403: return "Error: this API key does not have access to the requested data.";
       case 404: return "Error: the symbol or recorded print is unavailable.";
-      case 429: return "Error: the API request limit was reached. Wait before retrying; limits depend on your key's tier.";
+      case 429: return quotaErrorGuidance(error.quota).text;
       case 503: return "Error: the requested index data is currently unavailable. Retry shortly; unavailable prices are not zero.";
       default: return "Error: the Pulse Verity Index API returned HTTP " + error.status + ".";
     }
@@ -190,6 +192,7 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
     if (!response.ok) {
+      if (response.status === 429) throw new ApiFailure(response.status, await readQuotaDetails(response));
       await response.body?.cancel();
       throw new ApiFailure(response.status);
     }
@@ -304,7 +307,11 @@ export class PublicKeyCache {
 const asResult = (output: Record<string, unknown>) => ({
   content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }], structuredContent: output
 });
-const asError = (error: unknown) => ({ content: [{ type: "text" as const, text: describeApiError(error) }], isError: true });
+const asError = (error: unknown) => ({
+  content: [{ type: "text" as const, text: describeApiError(error) }], isError: true,
+  ...(error instanceof ApiFailure && error.status === 429
+    ? { structuredContent: { error: quotaErrorGuidance(error.quota).error } } : {})
+});
 const readAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 
 export function createIndexServer(api: ApiClient = createApiClient(process.env.PULSE_API_KEY || "")): McpServer {

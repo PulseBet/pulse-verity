@@ -17,13 +17,14 @@ if (!allowed.has(name) || !output) {
 fs.mkdirSync(output, { recursive: true });
 fs.mkdirSync(path.join(output, "dist"), { recursive: true });
 fs.copyFileSync("dist/index.js", path.join(output, "dist", "index.js"));
+fs.copyFileSync("dist/quotaError.js", path.join(output, "dist", "quotaError.js"));
 for (const file of ["LICENSE", "SECURITY.md"]) fs.copyFileSync(file, path.join(output, file));
 
 const canonical = JSON.parse(fs.readFileSync("package.json", "utf8"));
 canonical.name = name;
 canonical.description = `Functional install alias for the Pulse Verity Index MCP server. Canonical package: pulse-verity`;
 canonical.bin = { [name]: "dist/index.js" };
-canonical.files = ["dist/index.js", "README.md", "LICENSE", "SECURITY.md"];
+canonical.files = ["dist/index.js", "dist/quotaError.js", "README.md", "LICENSE", "SECURITY.md"];
 canonical.scripts = {};
 delete canonical.devDependencies;
 fs.writeFileSync(path.join(output, "package.json"), `${JSON.stringify(canonical, null, 2)}\n`);

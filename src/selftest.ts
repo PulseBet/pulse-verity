@@ -11,6 +11,8 @@ import {
   REQUEST_TIMEOUT_MS, describeApiError, redactCredentials
 } from "./index.js";
 import type { VerifiablePrint, ApiClient } from "./index.js";
+import { readQuotaDetails, quotaErrorGuidance, MAX_QUOTA_ERROR_BYTES, DEVELOPER_ACCOUNT_URL } from "./quotaError.js";
+import type { QuotaDetails } from "./quotaError.js";
 
 let passed = 0;
 function ok(condition: unknown, message: string): void { assert.ok(condition, message); passed += 1; }
@@ -150,6 +152,108 @@ for (const status of [400, 401, 403, 404, 429, 503]) {
       "HTTP " + status + " stays an error without exposing upstream bodies");
   }
 }
+
+const untrustedQuotaText = fakeKey + " https://unrelated.invalid/pay Bearer synthetic-quota-secret";
+const quotaResponse = (code: unknown, retryAfter?: string) => new Response(JSON.stringify({
+  code, message: untrustedQuotaText, accountUrl: "https://unrelated.invalid/pay",
+  accountId: "synthetic-private-account", retryAfterSeconds: 1,
+  getKey: untrustedQuotaText, nextAction: "purchase_without_approval"
+}), { status: 429, headers: retryAfter === undefined ? {} : { "Retry-After": retryAfter } });
+const monthlyDetails = await readQuotaDetails(quotaResponse("MONTHLY_LIMIT", "30"));
+ok(JSON.stringify(monthlyDetails) === '{"code":"MONTHLY_LIMIT"}',
+  "monthly allowance ignores upstream retry advice, messages, links and identifiers");
+const rateDetails = await readQuotaDetails(quotaResponse("RATE_LIMITED", "30"));
+ok(rateDetails.code === "RATE_LIMITED" && rateDetails.retryAfterSeconds === 30 && Object.keys(rateDetails).length === 2,
+  "temporary rate limit preserves only the known code and bounded Retry-After seconds");
+for (const value of ["0", "86401", "999999999999999999", "-1", "1.5", "1e2", "tomorrow", "Wed, 21 Oct 2026 07:28:00 GMT", untrustedQuotaText]) {
+  const details = await readQuotaDetails(quotaResponse("RATE_LIMITED", value));
+  ok(details.code === "RATE_LIMITED" && details.retryAfterSeconds === undefined,
+    "invalid Retry-After never becomes advice or leaked header text");
+}
+for (const value of ["1", "86400"]) {
+  ok((await readQuotaDetails(quotaResponse("RATE_LIMITED", value))).retryAfterSeconds === Number(value),
+    "Retry-After accepts the supported integer boundaries");
+}
+for (const code of [undefined, null, "monthly_limit", "MONTHLY_LIMIT ", "UNKNOWN", { code: "MONTHLY_LIMIT" }]) {
+  const details = await readQuotaDetails(quotaResponse(code, "15"));
+  ok(details.code === undefined && details.retryAfterSeconds === 15,
+    "unknown quota code stays generic while preserving safe retry advice");
+}
+for (const body of ["invalid-json", "[]", "null", '"MONTHLY_LIMIT"', '{"code":']) {
+  const details = await readQuotaDetails(new Response(body, { status: 429 }));
+  ok(Object.keys(details).length === 0, "malformed quota body stays a generic limit error");
+}
+ok(Object.keys(await readQuotaDetails(new Response(null, { status: 429 }))).length === 0,
+  "empty quota response stays generic");
+ok(Object.keys(await readQuotaDetails(new Response('{"code":"MONTHLY_LIMIT"}', { status: 403 }))).length === 0,
+  "quota codes are interpreted only for HTTP 429");
+
+let quotaAdvertisedCancelled = false;
+const quotaAdvertisedBody = new ReadableStream<Uint8Array>({
+  start(controller) { controller.enqueue(new TextEncoder().encode('{"code":"MONTHLY_LIMIT"}')); },
+  cancel() { quotaAdvertisedCancelled = true; }
+});
+const quotaAdvertised = await readQuotaDetails(new Response(quotaAdvertisedBody, {
+  status: 429, headers: { "content-length": String(MAX_QUOTA_ERROR_BYTES + 1), "Retry-After": "5" }
+}));
+ok(quotaAdvertisedCancelled && quotaAdvertised.code === undefined && quotaAdvertised.retryAfterSeconds === 5,
+  "oversized advertised quota body is cancelled and does not turn into a monthly claim");
+let quotaStreamCancelled = false;
+const quotaOversizedBody = new ReadableStream<Uint8Array>({
+  start(controller) {
+    controller.enqueue(new Uint8Array(MAX_QUOTA_ERROR_BYTES));
+    controller.enqueue(new Uint8Array(1));
+  },
+  cancel() { quotaStreamCancelled = true; throw new Error(untrustedQuotaText); }
+});
+const quotaOversized = await readQuotaDetails(new Response(quotaOversizedBody, {
+  status: 429, headers: { "content-length": "1" }
+}));
+ok(quotaStreamCancelled && Object.keys(quotaOversized).length === 0,
+  "streaming quota cap does not trust a small content-length, and cancellation failure stays generic");
+const quotaAtLimit = '{"code":"MONTHLY_LIMIT","padding":"' + "x".repeat(MAX_QUOTA_ERROR_BYTES - 37) + '"}';
+ok(new TextEncoder().encode(quotaAtLimit).length === MAX_QUOTA_ERROR_BYTES
+  && (await readQuotaDetails(new Response(quotaAtLimit, { status: 429 }))).code === "MONTHLY_LIMIT",
+  "valid quota body at the exact byte limit is accepted");
+const brokenQuotaBody = new ReadableStream<Uint8Array>({
+  start(controller) { controller.error(new Error(untrustedQuotaText)); }
+});
+try {
+  await createApiClient(fakeKey, async () => new Response(brokenQuotaBody, {
+    status: 429, headers: { "Retry-After": "9" }
+  }))("/api/index/v1/price");
+  assert.fail("Expected quota rejection");
+} catch (error) {
+  ok(error instanceof ApiFailure && error.status === 429 && error.quota.retryAfterSeconds === 9
+    && error.quota.code === undefined && !describeApiError(error).includes(fakeKey),
+  "broken quota stream preserves the HTTP 429 and safe retry hint without leaking its exception");
+}
+const monthlyGuidance = quotaErrorGuidance(monthlyDetails);
+ok(monthlyGuidance.text.includes("monthly API allowance is exhausted")
+  && monthlyGuidance.text.includes("reset") && monthlyGuidance.text.includes("owner must approve")
+  && monthlyGuidance.text.includes("Do not repeatedly retry")
+  && monthlyGuidance.error.accountUrl === DEVELOPER_ACCOUNT_URL
+  && monthlyGuidance.error.requiresOwnerApproval === true
+  && monthlyGuidance.error.nextAction === "owner_review_or_reset",
+  "monthly guidance offers reset or owner-reviewed upgrade with explicit payment approval");
+const rateGuidance = quotaErrorGuidance(rateDetails);
+ok(rateGuidance.text.includes("at least 30 seconds") && !rateGuidance.text.includes("upgrade")
+  && rateGuidance.error.nextAction === "wait" && rateGuidance.error.accountUrl === undefined,
+  "temporary rate limiting gives backoff without an upgrade pitch");
+const genericGuidance = quotaErrorGuidance();
+ok(genericGuidance.error.code === "REQUEST_LIMIT" && genericGuidance.error.nextAction === "check_limits"
+  && !genericGuidance.text.includes("monthly") && !genericGuidance.text.includes("upgrade"),
+  "unknown quota response makes no monthly or payment assumptions");
+const suppliedUntrusted = quotaErrorGuidance({
+  code: untrustedQuotaText, retryAfterSeconds: Infinity, accountUrl: untrustedQuotaText,
+  accountId: "synthetic-private-account"
+} as unknown as QuotaDetails);
+ok(suppliedUntrusted.error.code === "REQUEST_LIMIT"
+  && Object.keys(suppliedUntrusted.error).length === 2
+  && !JSON.stringify(suppliedUntrusted).includes("synthetic-private-account")
+  && !JSON.stringify(suppliedUntrusted).includes(fakeKey),
+  "metadata generator reconstructs the safe contract instead of spreading an arbitrary object");
+
 ok(!describeApiError(new Error("transport leaked " + fakeKey)).includes(fakeKey), "raw transport errors cannot expose credentials");
 await rejects(() => createApiClient(fakeKey, async () => new Response("{}", {
   headers: { "content-length": String(MAX_RESPONSE_BYTES + 1) }
@@ -230,6 +334,47 @@ try {
 } finally {
   await client.close();
   await server.close();
+}
+
+// Quota guidance crosses the actual transport as both readable text and typed data.
+let nextQuotaCode: unknown = "MONTHLY_LIMIT";
+let nextRetryHeader: string | undefined = "12";
+const quotaServer = createIndexServer(createApiClient(fakeKey, async () => quotaResponse(nextQuotaCode, nextRetryHeader)));
+const quotaClient = new Client({ name: "offline-quota-selftest", version: SERVER_VERSION });
+const [quotaServerTransport, quotaClientTransport] = InMemoryTransport.createLinkedPair();
+await quotaServer.connect(quotaServerTransport);
+await quotaClient.connect(quotaClientTransport);
+try {
+  for (const code of ["MONTHLY_LIMIT", "RATE_LIMITED", "UNRECOGNIZED"]) {
+    nextQuotaCode = code;
+    const result = await quotaClient.callTool({ name: "get_index_price", arguments: { symbol: "BTC" } });
+    const output = result.structuredContent as { error: Record<string, unknown> };
+    ok(result.isError === true && output.error.code === (code === "UNRECOGNIZED" ? "REQUEST_LIMIT" : code),
+      "MCP quota tool error exposes the safe structured code for " + code);
+    const text = (result.content as Array<{ text: string }>)[0].text;
+    if (code === "MONTHLY_LIMIT") {
+      ok(output.error.accountUrl === DEVELOPER_ACCOUNT_URL && output.error.requiresOwnerApproval === true
+        && output.error.retryAfterSeconds === undefined && text.includes("owner must approve"),
+        "MCP monthly result includes only trusted upgrade destination and owner approval requirement");
+    } else {
+      ok(output.error.retryAfterSeconds === 12 && output.error.accountUrl === undefined
+        && output.error.requiresOwnerApproval === undefined && !text.includes("upgrade"),
+        "MCP temporary or generic result retains retry guidance without a purchase action");
+    }
+    ok(!JSON.stringify(result).includes(fakeKey) && !JSON.stringify(result).includes("unrelated.invalid")
+      && !JSON.stringify(result).includes("synthetic-private-account")
+      && !JSON.stringify(result).includes("synthetic-quota-secret"),
+      "MCP quota text and structured output discard malicious upstream data");
+  }
+  nextQuotaCode = "UNRECOGNIZED";
+  nextRetryHeader = untrustedQuotaText;
+  const unknownResult = await quotaClient.callTool({ name: "get_index_price", arguments: { symbol: "ETH" } });
+  const unknownOutput = unknownResult.structuredContent as { error: Record<string, unknown> };
+  ok(unknownOutput.error.nextAction === "check_limits" && unknownOutput.error.retryAfterSeconds === undefined,
+    "MCP malformed Retry-After stays generic rather than inventing a wait duration");
+} finally {
+  await quotaClient.close();
+  await quotaServer.close();
 }
 
 const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));

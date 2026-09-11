@@ -6,12 +6,12 @@
     "url": "https://github.com/PulseBet/pulse-verity",
     "source": "github"
   },
-  "version": "1.2.3",
+  "version": "1.2.4",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "pulse-verity",
-      "version": "1.2.3",
+      "version": "1.2.4",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {

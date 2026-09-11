@@ -2,7 +2,7 @@ name: Gemini extension
 
 on:
   push:
-    branches: [main, codex/gemini-cli-discovery]
+    branches: [main, codex/gemini-cli-discovery, codex/mcp-upgrade-guidance]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -27,6 +27,14 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm test
+      - name: Pack the verified candidate
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
+          version="$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).version')"
+          echo "tarball=$RUNNER_TEMP/pulse-verity-$version.tgz" >> "$GITHUB_OUTPUT"
       - run: npm audit --omit=dev --audit-level=high
       - name: Stage minimal Gemini archives
         shell: bash
@@ -53,7 +61,8 @@ jobs:
       - name: Check installed MCP tools
         timeout-minutes: 2
         run: |
-          node scripts/gemini-extension-smoke.mjs "$HOME/.gemini/extensions/pulse-verity/gemini-extension.json"
+          node scripts/gemini-extension-smoke.mjs "$HOME/.gemini/extensions/pulse-verity/gemini-extension.json" \
+            --candidate-tarball "${{ steps.candidate.outputs.tarball }}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: gemini-archives

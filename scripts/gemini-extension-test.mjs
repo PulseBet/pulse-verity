@@ -66,3 +66,17 @@ test("CI bounds installation waits and approves only its staged local extension"
   assert(workflow.includes("printf 'y\\n' | gemini extensions install \"$RUNNER_TEMP/verity-gemini/stage\""));
   assert(!workflow.includes("folderTrust.enabled: false"));
 });
+
+test("candidate CI uses the packed candidate before its npm version exists", () => {
+  const workflow = read(".github/workflows/gemini-extension.yml");
+  assert(workflow.includes("codex/mcp-upgrade-guidance"));
+  const verify = workflow.slice(workflow.indexOf("  verify:"), workflow.indexOf("  publish:"));
+  assert(verify.indexOf("npm test") < verify.indexOf("npm pack --ignore-scripts --pack-destination"));
+  assert(verify.includes('--candidate-tarball "${{ steps.candidate.outputs.tarball }}"'));
+  assert(!verify.includes("npm publish") && !verify.includes("gh release"));
+  const smoke = read("scripts/gemini-extension-smoke.mjs");
+  assert(smoke.includes('isAbsolute(path) && path.endsWith(".tgz")'));
+  assert(smoke.includes('args: ["--yes", "--package", candidateTarball, "pulse-verity"]'));
+  assert(smoke.includes('assert.deepEqual(config, { command: "npx", args: ["-y", `pulse-verity@${pkg.version}`] })'));
+  assert(smoke.includes('cwd: cleanCwd'));
+});
