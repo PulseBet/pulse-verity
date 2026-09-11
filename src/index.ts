@@ -6,7 +6,7 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 
-export const SERVER_VERSION = "1.2.1";
+export const SERVER_VERSION = "1.2.2";
 export const API_BASE = "https://mcp.thepulse.markets";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const MAX_RESPONSE_BYTES = 1_048_576;
