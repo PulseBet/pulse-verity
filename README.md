@@ -30,9 +30,11 @@ verifiable, exactly like a keyed one.
 
 ## Add a key for everything else
 
-A free key unlocks 4,800+ assets, batch reads, settlement prints and signature
-verification. It takes about a minute at
-[thepulse.markets/developers](https://thepulse.markets/developers):
+A free key enables catalogue access, batch reads and settlement prints, subject
+to usage limits. Create a developer account at
+[thepulse.markets/developers](https://thepulse.markets/developers), verify your
+email, then create a key. Keep it in your MCP client's private configuration;
+do not share it in chat. Signature verification also works without a key.
 
 ```bash
 claude mcp add pulse-verity \
@@ -72,7 +74,7 @@ and `/.well-known/oauth-protected-resource/api/index/mcp`.
 ### Cursor marketplace package
 
 This repository includes `.cursor-plugin/plugin.json` and `mcp.json` for
-Cursor's plugin loader. The plugin starts the released `pulse-verity@1.2.4`
+Cursor's plugin loader. The plugin starts the released `pulse-verity@1.2.5`
 package with `npx`; Node.js 18 or newer is required. No platform engine code
 or private repository access is included.
 
@@ -93,7 +95,7 @@ grok plugin install PulseBet/pulse-verity --trust
 ```
 
 Start a new Grok Build session, then ask for the current Bitcoin index price.
-The plugin starts `npx -y pulse-verity@1.2.4`; Node.js 18 or newer and npm are
+The plugin starts `npx -y pulse-verity@1.2.5`; Node.js 18 or newer and npm are
 required. BTC, ETH and SOL samples work without an API key. To enable
 catalogue, batch and settlement-print requests, set `PULSE_API_KEY` in the
 environment that launches Grok Build, then start a new session. Get a free key
@@ -124,7 +126,7 @@ gemini extensions install https://github.com/PulseBet/pulse-verity --skip-settin
 ```
 
 Restart Gemini CLI, then ask for the current Bitcoin index price. The extension
-starts the released `pulse-verity@1.2.4` package through `npx`; Node.js and npm
+starts the released `pulse-verity@1.2.5` package through `npx`; Node.js and npm
 must be available. BTC, ETH and SOL samples work without a key. Gemini may warn
 that the optional setting is unset; that does not prevent keyless startup.
 
@@ -174,7 +176,7 @@ env = { PULSE_API_KEY = "pidx_your_key" }
 
 ## Claude Desktop: one-click install
 
-Download [`pulse-verity-1.2.4.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.2.4/pulse-verity-1.2.4.mcpb),
+Download [`pulse-verity-1.2.5.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.2.5/pulse-verity-1.2.5.mcpb),
 open it with Claude Desktop (macOS or Windows), and leave the optional key blank
 to try BTC, ETH and SOL. Add a free key for catalogue, batch and settlement-print
 requests. The bundle contains the same compiled server modules npm ships, with its runtime
@@ -245,15 +247,16 @@ Use the price or batch tool to obtain signed receipts. Catalog coverage changes;
 a listed asset or a catalog total does not guarantee a fresh price. Unavailable
 prices are not zero. API tier limits can be lower than the tool's batch limit.
 
-## Request limits and upgrades
+## Request limits and account access
 
 HTTP 429 tool errors include `structuredContent.error`. `RATE_LIMITED` means
 wait, with `retryAfterSeconds` when supplied. `MONTHLY_LIMIT` means the monthly
-allowance is exhausted: wait for reset or ask the account owner to review an
-upgrade at [the developer portal](https://thepulse.markets/developers).
-The owner must approve plan and payment changes; these read-only tools never
-purchase an upgrade. Unknown limits use `REQUEST_LIMIT` without assuming a
-monthly allowance or recommending payment. No tool automatically retries.
+allowance is exhausted. The response links to
+[account access and request-limit information](https://thepulse.markets/developers/access)
+and returns `nextAction: "review_access"`. The allowance resets at the start of
+the next UTC month. Creating or replacing a key does not reset the account's
+allowance. Unknown limits use `REQUEST_LIMIT` without assuming a monthly
+allowance. No tool automatically retries.
 
 ## Verify locally
 

@@ -1,7 +1,7 @@
 /** Allowlisted quota guidance shared by the public and hosted MCP adapters. */
 export const MAX_QUOTA_ERROR_BYTES = 8192;
 export const MAX_RETRY_AFTER_SECONDS = 86400;
-export const DEVELOPER_ACCOUNT_URL = "https://thepulse.markets/developers";
+export const DEVELOPER_ACCOUNT_URL = "https://thepulse.markets/developers/access";
 
 export type QuotaCode = "RATE_LIMITED" | "MONTHLY_LIMIT";
 export interface QuotaDetails {
@@ -11,10 +11,9 @@ export interface QuotaDetails {
 
 export interface QuotaErrorMetadata {
   code: QuotaCode | "REQUEST_LIMIT";
-  nextAction: "wait" | "owner_review_or_reset" | "check_limits";
+  nextAction: "wait" | "review_access" | "check_limits";
   retryAfterSeconds?: number;
   accountUrl?: string;
-  requiresOwnerApproval?: true;
 }
 
 function safeRetrySeconds(value: unknown): number | undefined {
@@ -70,11 +69,12 @@ export async function readQuotaDetails(response: Response): Promise<QuotaDetails
 export function quotaErrorGuidance(details: QuotaDetails = {}): { text: string; error: QuotaErrorMetadata } {
   if (details.code === "MONTHLY_LIMIT") {
     return {
-      text: "Error: the monthly API allowance is exhausted. Wait for the allowance to reset, or ask the account owner to review an upgrade at "
-        + DEVELOPER_ACCOUNT_URL + ". Do not repeatedly retry. The account owner must approve any plan or payment change.",
+      text: "Error: the monthly API allowance is exhausted. Read about account access and request limits at "
+        + DEVELOPER_ACCOUNT_URL + ". The allowance resets at the start of the next UTC month. "
+        + "Creating or replacing a key does not reset this account's allowance. Do not repeatedly retry.",
       error: {
-        code: "MONTHLY_LIMIT", nextAction: "owner_review_or_reset",
-        accountUrl: DEVELOPER_ACCOUNT_URL, requiresOwnerApproval: true
+        code: "MONTHLY_LIMIT", nextAction: "review_access",
+        accountUrl: DEVELOPER_ACCOUNT_URL
       }
     };
   }

@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { readQuotaDetails, quotaErrorGuidance } from "./quotaError.js";
 import type { QuotaDetails } from "./quotaError.js";
 
-export const SERVER_VERSION = "1.2.4";
+export const SERVER_VERSION = "1.2.5";
 export const API_BASE = "https://mcp.thepulse.markets";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const MAX_RESPONSE_BYTES = 1_048_576;
@@ -35,8 +35,9 @@ export const SAMPLE_SYMBOLS = ["BTC", "ETH", "SOL"];
 export class NeedsKey extends Error {}
 
 const NEEDS_KEY_TEXT =
-  "This needs a free Pulse Verity developer key. Get one in under a minute at " +
-  "https://thepulse.markets/developers, then set PULSE_API_KEY and restart. " +
+  "This request needs a Pulse Verity developer key. Create a free developer account at " +
+  "https://thepulse.markets/developers and verify your email to create a key. " +
+  "Set PULSE_API_KEY in your MCP client's private configuration and restart; do not share the key in chat. " +
   "Without a key this server still answers get_index_price for " + SAMPLE_SYMBOLS.join(", ") + ".";
 type ApiPath = typeof API_PATHS[number];
 export type ApiClient = (path: ApiPath, params?: Record<string, string>) => Promise<Record<string, unknown>>;

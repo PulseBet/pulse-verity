@@ -11,7 +11,7 @@ import {
   REQUEST_TIMEOUT_MS, describeApiError, redactCredentials
 } from "./index.js";
 import type { VerifiablePrint, ApiClient } from "./index.js";
-import { readQuotaDetails, quotaErrorGuidance, MAX_QUOTA_ERROR_BYTES, DEVELOPER_ACCOUNT_URL } from "./quotaError.js";
+import { readQuotaDetails, quotaErrorGuidance, MAX_QUOTA_ERROR_BYTES } from "./quotaError.js";
 import type { QuotaDetails } from "./quotaError.js";
 
 let passed = 0;
@@ -230,12 +230,16 @@ try {
 }
 const monthlyGuidance = quotaErrorGuidance(monthlyDetails);
 ok(monthlyGuidance.text.includes("monthly API allowance is exhausted")
-  && monthlyGuidance.text.includes("reset") && monthlyGuidance.text.includes("owner must approve")
+  && monthlyGuidance.text.includes("start of the next UTC month")
+  && monthlyGuidance.text.includes("Creating or replacing a key does not reset this account's allowance")
   && monthlyGuidance.text.includes("Do not repeatedly retry")
-  && monthlyGuidance.error.accountUrl === DEVELOPER_ACCOUNT_URL
-  && monthlyGuidance.error.requiresOwnerApproval === true
-  && monthlyGuidance.error.nextAction === "owner_review_or_reset",
-  "monthly guidance offers reset or owner-reviewed upgrade with explicit payment approval");
+  && monthlyGuidance.error.accountUrl === "https://thepulse.markets/developers/access"
+  && monthlyGuidance.error.nextAction === "review_access",
+  "monthly guidance explains the account allowance and links fixed access information");
+ok(JSON.stringify(monthlyGuidance.error) === JSON.stringify({
+  code: "MONTHLY_LIMIT", nextAction: "review_access", accountUrl: "https://thepulse.markets/developers/access"
+}) && !/upgrade|checkout|purchase|subscribe|subscription|payment|sales|requiresOwnerApproval/i.test(JSON.stringify(monthlyGuidance)),
+  "monthly text and metadata contain access information without sales or payment actions");
 const rateGuidance = quotaErrorGuidance(rateDetails);
 ok(rateGuidance.text.includes("at least 30 seconds") && !rateGuidance.text.includes("upgrade")
   && rateGuidance.error.nextAction === "wait" && rateGuidance.error.accountUrl === undefined,
@@ -353,14 +357,18 @@ try {
       "MCP quota tool error exposes the safe structured code for " + code);
     const text = (result.content as Array<{ text: string }>)[0].text;
     if (code === "MONTHLY_LIMIT") {
-      ok(output.error.accountUrl === DEVELOPER_ACCOUNT_URL && output.error.requiresOwnerApproval === true
-        && output.error.retryAfterSeconds === undefined && text.includes("owner must approve"),
-        "MCP monthly result includes only trusted upgrade destination and owner approval requirement");
+      ok(output.error.accountUrl === "https://thepulse.markets/developers/access"
+        && output.error.nextAction === "review_access"
+        && output.error.retryAfterSeconds === undefined
+        && text.includes("Creating or replacing a key does not reset this account's allowance"),
+        "MCP monthly result links access information and preserves account quota semantics");
     } else {
       ok(output.error.retryAfterSeconds === 12 && output.error.accountUrl === undefined
         && output.error.requiresOwnerApproval === undefined && !text.includes("upgrade"),
         "MCP temporary or generic result retains retry guidance without a purchase action");
     }
+    ok(!/upgrade|checkout|purchase|subscribe|subscription|payment|sales|requiresOwnerApproval/i.test(JSON.stringify(result)),
+      "MCP quota response contains no sales or payment text or metadata");
     ok(!JSON.stringify(result).includes(fakeKey) && !JSON.stringify(result).includes("unrelated.invalid")
       && !JSON.stringify(result).includes("synthetic-private-account")
       && !JSON.stringify(result).includes("synthetic-quota-secret"),

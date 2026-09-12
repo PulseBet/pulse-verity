@@ -37,6 +37,8 @@ const ok = (name, cond, detail = '') => {
   catch (e) { message = e.message; ok('it is a NeedsKey, not a generic failure', e instanceof NeedsKey); }
   ok('the invitation names the signup page', message.includes('thepulse.markets/developers'), message);
   ok('it says the key is free', /free/i.test(message));
+  ok('key setup explains account creation and email verification', message.includes('Create a free developer account') && message.includes('verify your email'));
+  ok('key setup uses private configuration instead of chat', message.includes("MCP client's private configuration") && message.includes('do not share the key in chat'));
   ok('it says what still works without one', SAMPLE_SYMBOLS.every((s) => message.includes(s)), message);
 }
 
