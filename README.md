@@ -84,6 +84,37 @@ requests. Never put a real key in these repository files.
 Marketplace availability is subject to Cursor's review. The configuration
 below remains available for manual MCP installation.
 
+### Grok Build plugin
+
+Install directly from the public repository:
+
+```bash
+grok plugin install PulseBet/pulse-verity --trust
+```
+
+Start a new Grok Build session, then ask for the current Bitcoin index price.
+The plugin starts `npx -y pulse-verity@1.2.4`; Node.js 18 or newer and npm are
+required. BTC, ETH and SOL samples work without an API key. To enable
+catalogue, batch and settlement-print requests, set `PULSE_API_KEY` in the
+environment that launches Grok Build, then start a new session. Get a free key
+at [the developer portal](https://thepulse.markets/developers); never save it
+in these repository files.
+
+The `.grok-plugin/plugin.json` manifest explicitly selects
+`.grok-plugin/mcp.json`. It exposes the five read-only tools listed above and
+adds no hooks, skills, agents, slash commands or filesystem-access tools.
+Grok's official marketplace listing is subject to review; this direct GitHub
+installation does not depend on listing approval.
+
+The plugin source is fetched from `github.com`. At startup, `npx` may fetch
+the pinned package and its dependencies from the configured npm registry
+(`registry.npmjs.org` by default). During tool use, the server makes GET
+requests only to `https://mcp.thepulse.markets` for price, batch, recorded-print,
+catalogue, sample and public-key endpoints under `/api/index/v1/`. A configured
+`PULSE_API_KEY` is sent only to that origin for keyed requests; samples and
+public-key reads need no credentials. The server does not read project files
+or send separate telemetry.
+
 ### Gemini CLI extension
 
 Install the public extension without an API-key prompt:
@@ -154,6 +185,7 @@ dependencies. Existing downloaded bundles must be replaced with the new release.
 - npm: [`pulse-verity`](https://www.npmjs.com/package/pulse-verity)
 - Official MCP Registry: `io.github.PulseBet/pulse-verity`
 - Cursor: `.cursor-plugin/plugin.json` packages the MCP for marketplace review; manual MCP configuration is shown above
+- Grok Build: `.grok-plugin/plugin.json` packages the MCP for direct GitHub installation and marketplace review
 - Gemini CLI: `gemini-extension.json` packages the public MCP for the extension gallery and GitHub installation
 - Claude Desktop: add the JSON block above to `claude_desktop_config.json`
 - Smithery: `smithery.yaml` in this repo declares the stdio command and the one key it needs
@@ -232,6 +264,8 @@ npm test
 
 `npm run check:cursor` checks the Cursor manifest, optional-key configuration,
 package-version pin and logo without building or making network requests.
+`npm run check:grok` checks the Grok manifest, explicit MCP path, optional-key
+configuration and package-version pin without building or network requests.
 `npm run check:gemini` checks the Gemini manifest, optional sensitive setting,
 version pin and release configuration without building or network requests.
 The Gemini extension workflow runs the complete suite, installs with Gemini CLI,

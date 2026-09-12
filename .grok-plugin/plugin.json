@@ -1,0 +1,13 @@
+{
+  "name": "pulse-verity",
+  "version": "1.2.4",
+  "description": "Read-only access to signed, verifiable Pulse Verity Index crypto prices. Try BTC, ETH and SOL without an API key; add a free key for catalogue, batch and settlement-print requests, subject to usage limits.",
+  "author": {
+    "name": "Pulse"
+  },
+  "homepage": "https://thepulse.markets/developers",
+  "repository": "https://github.com/PulseBet/pulse-verity",
+  "license": "MIT",
+  "keywords": ["pulse-verity", "pulse verity", "pulse verity index"],
+  "mcpServers": ".grok-plugin/mcp.json"
+}
