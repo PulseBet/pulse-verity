@@ -88,6 +88,9 @@ below remains available for manual MCP installation.
 
 ### Grok Build plugin
 
+For a keyless sample task and the distinct Grok Bot / xAI API connection routes,
+see [Use Pulse Verity with Grok](https://github.com/PulseBet/pulse-verity/blob/main/docs/grok.md).
+
 Install directly from the public repository:
 
 ```bash
