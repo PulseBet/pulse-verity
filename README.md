@@ -71,6 +71,14 @@ and `/.well-known/oauth-protected-resource/api/index/mcp`.
 
 ## Install locally in other clients
 
+### Claude Code / Cowork plugin
+
+For the guided price-check skill, pinned `pulse-verity@1.2.6` MCP runtime,
+local setup and three example prompts, see the [Claude plugin guide](docs/claude-code.md).
+Keyless samples are available; wider access requires the user's own key and
+applicable allowance. Cowork runtime constraints are documented in the guide.
+This package is separate from the Desktop MCPB; directory approval is not implied.
+
 ### Cursor marketplace package
 
 This repository includes `.cursor-plugin/plugin.json` and `mcp.json` for

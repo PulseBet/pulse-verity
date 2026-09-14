@@ -35,6 +35,9 @@ jobs:
           claude --plugin-dir "$GITHUB_WORKSPACE" plugin list --json > "$RUNNER_TEMP/verity-claude-plugin-list.json"
           cat "$RUNNER_TEMP/verity-claude-plugin-list.json"
           node scripts/claude-plugin-test.mjs --cli-list "$RUNNER_TEMP/verity-claude-plugin-list.json"
+          claude --plugin-dir "$GITHUB_WORKSPACE" plugin details pulse-verity@inline > "$RUNNER_TEMP/verity-claude-plugin-details.txt"
+          cat "$RUNNER_TEMP/verity-claude-plugin-details.txt"
+          node scripts/claude-plugin-test.mjs --cli-details "$RUNNER_TEMP/verity-claude-plugin-details.txt"
       - run: npm ci --ignore-scripts
       - name: Check published keyless stdio package
         run: node scripts/claude-plugin-smoke.mjs

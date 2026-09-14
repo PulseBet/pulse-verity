@@ -5,13 +5,14 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 const manifest = JSON.parse(read(".claude-plugin/plugin.json"));
 const pkg = JSON.parse(read("package.json"));
 const config = JSON.parse(read(".mcp.json"));
-const skill = read("skills/pulse-verity-price-check/SKILL.md");
+const skill = read("claude-skills/pulse-verity-price-check/SKILL.md");
 
 assert.equal(manifest.name, "pulse-verity");
 assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 assert.equal(manifest.version, pkg.version, "Claude plugin and package release must stay aligned");
 assert.equal(manifest.repository, "https://github.com/PulseBet/pulse-verity");
 assert.equal(manifest.license, "MIT");
+assert.equal(manifest.skills, "./claude-skills/");
 assert.deepEqual(config, {
   mcpServers: {
     "pulse-verity": {
@@ -27,8 +28,8 @@ assert(skill.includes("verify_print"));
 assert(skill.includes("get_index_price"));
 assert(read("docs/claude-code.md").includes(`pulse-verity@${manifest.version}`));
 assert.deepEqual(readdirSync(new URL("../.claude-plugin", import.meta.url)), ["plugin.json"]);
-assert.deepEqual(readdirSync(new URL("../skills", import.meta.url)), ["pulse-verity-price-check"]);
-for (const extra of ["hooks", "agents", "commands", "monitors", ".claude-plugin/marketplace.json"])
+assert.deepEqual(readdirSync(new URL("../claude-skills", import.meta.url)), ["pulse-verity-price-check"]);
+for (const extra of ["skills", "hooks", "agents", "commands", "monitors", ".claude-plugin/marketplace.json"])
   assert(!existsSync(new URL(`../${extra}`, import.meta.url)), `Unexpected capability: ${extra}`);
 for (const field of ["hooks", "agents", "commands", "monitors", "dependencies", "experimental", "userConfig"])
   assert(!(field in manifest), `Unexpected manifest capability: ${field}`);
@@ -51,7 +52,9 @@ assert.equal(pluginRows({ plugins: [{ id: "pulse-verity@inline", version: manife
 const args = process.argv.slice(2);
 if (args.length) {
   assert.equal(args.length, 2);
-  assert.equal(args[0], "--cli-list");
+  assert(["--cli-list", "--cli-details"].includes(args[0]), "Unknown CLI assertion");
+}
+if (args[0] === "--cli-list") {
   const listing = JSON.parse(readFileSync(args[1], "utf8"));
   const rows = pluginRows(listing);
   assert(rows.length > 0, "Official Claude CLI did not list the Pulse Verity plugin");
@@ -61,4 +64,12 @@ if (args.length) {
     assert(!row.errorDetails || row.errorDetails.length === 0, "Claude reported detailed plugin load errors");
   }
   console.log("PASS: official Claude CLI actually lists the intended plugin/version without load errors");
+}
+if (args[0] === "--cli-details") {
+  // The documented component inventory reports discovered skills, not only
+  // manifest metadata. A missing/unsupported custom path must fail this gate.
+  const details = readFileSync(args[1], "utf8").replace(/\u001b\[[0-9;]*m/g, "");
+  assert.match(details, /^\s*Skills\s+\(1\)[^\n]*\bpulse-verity-price-check\b/m,
+    "Claude did not discover the sole skill from the custom Claude-only path");
+  console.log("PASS: official Claude component inventory discovers the isolated price-check skill");
 }
