@@ -1,0 +1,15 @@
+{
+  "name": "pulse-verity",
+  "displayName": "Pulse Verity Price Check",
+  "version": "1.2.6",
+  "description": "Read crypto reference-price observations and verify their signed receipts with a guided, read-only workflow.",
+  "author": {
+    "name": "Pulse",
+    "email": "support@thepulse.markets",
+    "url": "https://thepulse.markets/developers"
+  },
+  "homepage": "https://github.com/PulseBet/pulse-verity/blob/main/docs/claude-code.md",
+  "repository": "https://github.com/PulseBet/pulse-verity",
+  "license": "MIT",
+  "keywords": ["crypto", "reference-prices", "signed-receipts", "mcp"]
+}
