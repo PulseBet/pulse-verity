@@ -8,6 +8,11 @@ const copy = [manifest.description, manifest.long_description,
   manifest.user_config.pulse_api_key.description,
   ...manifest.tools.map(({ description }) => description)].join("\n");
 
+test("desktop author links to the publisher profile while homepage stays the developer portal", () => {
+  assert.equal(manifest.author.url, "https://github.com/PulseBet");
+  assert.equal(manifest.homepage, "https://thepulse.markets/developers");
+});
+
 test("desktop copy distinguishes signed receipts from unsigned catalogue metadata", () => {
   assert.match(manifest.long_description, /successful rows in batch responses/);
   assert.match(manifest.long_description, /canonical symbol, exact price, at and grade fields/);
