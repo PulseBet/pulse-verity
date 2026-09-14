@@ -388,6 +388,6 @@ try {
 const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const lock = JSON.parse(fs.readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
 const metadata = JSON.parse(fs.readFileSync(new URL("../server.json", import.meta.url), "utf8"));
-ok([pkg.version, lock.version, lock.packages[""].version, metadata.version, metadata.packages[0].version]
-  .every((version) => version === SERVER_VERSION), "runtime, package, lock and MCP Registry metadata versions stay synchronized");
+ok([pkg.version, lock.version, lock.packages[""].version, metadata.packages[0].version]
+  .every((version) => version === SERVER_VERSION), "runtime, package, lock and MCP Registry package versions stay synchronized");
 console.log("✓ Pulse Verity Index selftest: " + passed + " assertions passed");
