@@ -1,7 +1,7 @@
 {
   "name": "pulse-verity",
   "version": "1.2.6",
-  "description": "Signed, verifiable crypto index prices across 4,800+ assets. Try BTC, ETH and SOL without an API key; a free key unlocks the full catalogue, batch reads and settlement prints, subject to usage limits.",
+  "description": "Read crypto reference-price observations and verify signed receipts. Limited BTC, ETH and SOL samples need no API key. Catalogue rows and surrounding metadata are unsigned; coverage and account allowances vary.",
   "author": {
     "name": "Pulse"
   },
@@ -17,7 +17,7 @@
       "PULSE_API_KEY": {
         "type": "string",
         "title": "Pulse API key (optional)",
-        "description": "Leave blank for signed BTC, ETH and SOL samples. Get a free key at https://thepulse.markets/developers for catalogue access, batch reads and settlement prints.",
+        "description": "Optional. Leave blank for limited BTC, ETH and SOL samples. For broader requests, use your own developer key from https://thepulse.markets/developers. Access, coverage and usage allowances depend on your account and current availability.",
         "default": ""
       }
     },
