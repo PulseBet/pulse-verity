@@ -1,12 +1,12 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.PulseBet/pulse-verity",
-  "description": "Signed, verifiable crypto index prices for 4,800+ assets. Try BTC, ETH and SOL without an API key.",
+  "description": "Read crypto reference prices and verify signed receipts. Includes limited keyless samples.",
   "repository": {
     "url": "https://github.com/PulseBet/pulse-verity",
     "source": "github"
   },
-  "version": "1.2.6",
+  "version": "1.2.7-metadata.1",
   "packages": [
     {
       "registryType": "npm",
@@ -16,7 +16,7 @@
       "environmentVariables": [
         {
           "name": "PULSE_API_KEY",
-          "description": "Optional. Leave blank for BTC, ETH and SOL samples. A free key from thepulse.markets/developers unlocks catalogue access, batch reads and settlement prints, subject to usage limits.",
+          "description": "Optional. Leave blank for limited BTC, ETH and SOL samples. For broader requests, use your own developer key from https://thepulse.markets/developers. Access, coverage and usage allowances depend on your account and current availability.",
           "isRequired": false,
           "format": "string",
           "isSecret": true

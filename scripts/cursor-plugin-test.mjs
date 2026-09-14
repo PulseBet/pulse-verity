@@ -53,7 +53,11 @@ test("the API key is optional and defaults to keyless access", () => {
 test("published package formats agree on version and optional-key access", () => {
   const registry = json("server.json");
   const desktop = json("manifest.json");
-  assert.equal(registry.version, pkg.version);
+  // Registry metadata revisions are checked separately by manifest-copy-test.
+  // The install target must still be this exact published npm package.
+  assert.equal(registry.packages.length, 1);
+  assert.equal(registry.packages[0].registryType, "npm");
+  assert.equal(registry.packages[0].identifier, pkg.name);
   assert.equal(registry.packages[0].version, pkg.version);
   assert.equal(desktop.version, pkg.version);
   assert.equal(registry.packages[0].environmentVariables.find((item) => item.name === "PULSE_API_KEY").isRequired, false);
