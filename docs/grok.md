@@ -10,7 +10,7 @@ change an account.
 | You are using | Connection route |
 |---|---|
 | Grok Build, the coding agent | Install this repository's plugin; try the keyless sample below. |
-| Grok Bot, the desktop/mobile app | Check the app's available plugins. A shareable Bot is separate from a plugin listing; see the status below. |
+| Grok Bot, the desktop/mobile app | Open the public setup template below. It is separate from a native marketplace connector. |
 | Your own application using the xAI API | Configure Verity's hosted remote MCP server with your developer key. |
 
 ## Grok Build: try a sample without a Verity key
@@ -24,7 +24,7 @@ grok plugin install PulseBet/pulse-verity --trust
 ```
 
 Start a new Grok Build session. The plugin starts the pinned public npm package
-`pulse-verity@1.2.5`. Leave `PULSE_API_KEY` unset for the keyless sample.
+`pulse-verity@1.2.6`. Leave `PULSE_API_KEY` unset for the keyless sample.
 
 Paste this task into the agent:
 
@@ -71,9 +71,11 @@ reset an account allowance. No tool automatically changes your plan.
 
 ## Grok Bot: connection and public sharing are separate
 
-As of September 12, 2026, this repository does **not** provide a verified public
-Grok Bot listing or a tested Verity Bot share link. Installing the Grok Build
-plugin does not create either one.
+Open [Pulse Verity Price Check](https://x.ai/bot/lUBhhemmDd_v5nq3bMtEW) and use
+**Add to Grok Bot** to copy the public setup recipe. This is a shared template,
+not a native marketplace connector. Review and approve any installation in your
+own environment, establish your own access, and check actual tool results.
+The link does not establish that a recipient's setup or connection has succeeded.
 
 Grok Bot documents plugin discovery under Settings → Plugins → Marketplace;
 options can vary by account and rollout. Use its

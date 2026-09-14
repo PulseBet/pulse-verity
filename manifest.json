@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "pulse-verity",
   "display_name": "Pulse Verity Index",
-  "version": "1.2.5",
-  "description": "Signed, verifiable crypto index prices for 4,800+ assets. Try BTC, ETH and SOL without an API key. Read-only tools over the Pulse Verity Index API, plus local signature verification.",
-  "long_description": "Every price the Pulse Verity Index publishes is signed with ECDSA P-256 and can be verified against a public key. This extension gives Claude five read-only tools: the current signed price for one symbol, a batch of up to 100 symbols, the asset catalogue with coverage and cadence, the recorded print nearest a timestamp, and an offline verifier for any signed print.\n\nNo API key is required to start. Without one the extension serves real, signed current prices for BTC, ETH and SOL. A free developer key from https://thepulse.markets/developers unlocks the full catalogue, batch reads and settlement prints, subject to usage limits. Update frequency and availability vary by asset.",
+  "version": "1.2.6",
+  "description": "Read crypto reference-price observations and verify their signed receipts. Try limited BTC, ETH and SOL samples without an API key. Five read-only tools with local signature verification.",
+  "long_description": "This extension gives Claude five read-only tools: current crypto index prices, batch reads, asset discovery, recorded prints near a requested time, and signature verification. Successful current-price and recorded-print receipts, and successful rows in batch responses, include ECDSA P-256 signatures over the canonical symbol, exact price, at and grade fields. Catalogue rows and surrounding metadata are unsigned. A valid signature authenticates these signed fields, not price accuracy or freshness. Coverage, cadence, batch limits and print retention vary; a catalogue entry does not guarantee a current price.\n\nLimited BTC, ETH and SOL samples require no API key. For broader requests, create a developer account at https://thepulse.markets/developers and configure your own key. Access and usage are subject to your developer account's allowance and current availability.\n\nThe signature verifier runs locally after retrieving the published public-key ring, which is cached. Verification depends on the matching key remaining published; this tool cannot verify a historical receipt whose key is no longer in that ring.",
   "author": {
     "name": "Pulse",
     "email": "support@thepulse.markets",
@@ -46,7 +46,7 @@
     "pulse_api_key": {
       "type": "string",
       "title": "Pulse API key (optional)",
-      "description": "Optional. Leave blank to use the free sample (BTC, ETH, SOL). A free key starting with pidx_ from https://thepulse.markets/developers unlocks 4,800+ assets (60 requests a minute, no card).",
+      "description": "Optional. Leave blank for limited BTC, ETH and SOL samples. For broader requests, create a developer account at https://thepulse.markets/developers and configure your own key. Access, coverage and usage allowances depend on your account and current availability.",
       "required": false,
       "sensitive": true
     }
@@ -54,23 +54,23 @@
   "tools": [
     {
       "name": "get_index_price",
-      "description": "Current signed index price for one crypto symbol"
+      "description": "Request a current signed price receipt for one crypto symbol, subject to availability"
     },
     {
       "name": "get_index_batch",
-      "description": "Signed prices for up to 100 symbols in one call"
+      "description": "Read a bounded batch with signed successful rows and per-symbol errors; account limits apply"
     },
     {
       "name": "list_index_assets",
-      "description": "The asset catalogue with coverage status and measured cadence"
+      "description": "Discover one page of the unsigned asset catalogue with coverage status and measured cadence"
     },
     {
       "name": "get_settlement_print",
-      "description": "The recorded signed print nearest a requested time"
+      "description": "Request the recorded signed print nearest a time within bounded retention; check its time difference"
     },
     {
       "name": "verify_print",
-      "description": "Verify a signed print locally with ECDSA P-256/SHA-256"
+      "description": "Verify canonical price fields locally with ECDSA P-256/SHA-256 using the fetched, cached public-key ring"
     }
   ],
   "compatibility": {

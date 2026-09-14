@@ -93,7 +93,7 @@ jobs:
             "$RUNNER_TEMP/verity-gemini/assets/win32.pulse-verity.tar.gz" \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Pulse Verity $MCPB_VERSION" \
-            --notes "Explain monthly account allowances with a fixed link to access information. Preserve temporary-limit backoff and clarify that replacing a key does not reset usage. Includes the same guidance in npm, desktop and Gemini packages. Existing installs must update."
+            --notes "Clarify desktop extension coverage, account allowances and signed-field boundaries. Describe local verification's published-key dependency and link the public Grok Bot setup template. No price, authentication or quota behavior changes. Includes npm, desktop and Gemini packages; existing installs must update."
 
   verify-published-gemini:
     needs: publish-desktop-bundle
