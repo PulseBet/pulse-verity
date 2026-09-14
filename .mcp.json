@@ -2,9 +2,9 @@
   "mcpServers": {
     "pulse-verity": {
       "command": "npx",
-      "args": ["-y", "pulse-verity"],
+      "args": ["-y", "pulse-verity@1.2.6"],
       "env": {
-        "PULSE_API_KEY": "pidx_your_key_here"
+        "PULSE_API_KEY": "${PULSE_API_KEY:-}"
       }
     }
   }
