@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { readQuotaDetails, quotaErrorGuidance } from "./quotaError.js";
 import type { QuotaDetails } from "./quotaError.js";
 
-export const SERVER_VERSION = "1.2.5";
+export const SERVER_VERSION = "1.2.6";
 export const API_BASE = "https://mcp.thepulse.markets";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const MAX_RESPONSE_BYTES = 1_048_576;
@@ -384,24 +384,9 @@ const isMain = (() => {
   }
 })();
 if (isMain) {
-  // ── NEVER EXIT BECAUSE A KEY IS MISSING ────────────────────────────────
-  //
-  // Until 10 Sep this block did exactly that: no PULSE_API_KEY meant a line
-  // on stderr and process.exit(1). 745 downloads produced ZERO signups, and
-  // this is why. An MCP server that exits during startup appears in Claude
-  // Desktop and Cursor as a red dot reading "disconnected"; stderr goes to a
-  // log file (~/Library/Logs/Claude/mcp-server-pulse-verity.log) that nobody
-  // opens. So the one sentence telling a developer where to get a key was
-  // written somewhere they would never look, and every install hit a wall it
-  // could not read.
-  //
-  // The server now always starts. Without a key it serves a small keyless
-  // sample — real current prices for BTC, ETH and SOL — and the invitation to
-  // sign up is returned as TOOL OUTPUT, which appears in the conversation, in
-  // front of the person, at the moment they are trying to use it.
-  //
-  // Show the thing working before asking for anything. A wall you cannot read
-  // is indistinguishable from a broken product.
+  // Keep the MCP transport available without a key. Keyless price requests
+  // use the limited BTC, ETH and SOL sample; requests requiring developer
+  // access return structured tool guidance instead of failing at startup.
   const apiKey = process.env.PULSE_API_KEY || "";
   const keyed = hasUsableKey(apiKey);
   createIndexServer().connect(new StdioServerTransport()).then(
