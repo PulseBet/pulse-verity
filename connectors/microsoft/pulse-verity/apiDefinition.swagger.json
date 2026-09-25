@@ -1,0 +1,97 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "version": "1.0.0",
+    "title": "Pulse Verity Index",
+    "description": "Read signed crypto index prices, discover covered assets, retrieve recorded prints, and verify price receipts through five read-only MCP tools.",
+    "contact": {
+      "name": "Pulse Support",
+      "url": "https://thepulse.markets/developers",
+      "email": "support@thepulse.markets"
+    }
+  },
+  "host": "mcp.thepulse.markets",
+  "basePath": "/",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json",
+    "text/event-stream"
+  ],
+  "paths": {
+    "/api/index/mcp": {
+      "post": {
+        "operationId": "InvokeServer",
+        "summary": "Pulse Verity Index",
+        "description": "Sends JSON-RPC 2.0 messages to the Pulse Verity Index over Streamable HTTP while the client negotiates the MCP session and discovers tools at runtime.",
+        "x-ms-agentic-protocol": "mcp-streamable-1.0",
+        "x-ms-visibility": "advanced",
+        "parameters": [
+          {
+            "name": "Accept",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "default": "application/json, text/event-stream",
+            "x-ms-summary": "MCP response formats",
+            "description": "Requests the JSON and event-stream response formats used by Streamable HTTP.",
+            "x-ms-visibility": "internal"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The server accepted the MCP request and returned a JSON or event-stream response."
+          },
+          "400": {
+            "description": "The MCP request was invalid."
+          },
+          "401": {
+            "description": "The Authorization header was missing or its bearer credential was refused."
+          },
+          "405": {
+            "description": "The endpoint received an unsupported HTTP method."
+          },
+          "500": {
+            "description": "The server could not complete the MCP request."
+          }
+        }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "api_key": {
+      "type": "apiKey",
+      "in": "header",
+      "name": "Authorization"
+    }
+  },
+  "security": [
+    {
+      "api_key": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Pulse Verity Index",
+      "description": "Provides read-only access to signed Pulse Verity Index observations."
+    }
+  ],
+  "x-ms-connector-metadata": [
+    {
+      "propertyName": "Website",
+      "propertyValue": "https://thepulse.markets/developers"
+    },
+    {
+      "propertyName": "Privacy policy",
+      "propertyValue": "https://thepulse.markets/developers/privacy"
+    },
+    {
+      "propertyName": "Categories",
+      "propertyValue": "Data;Finance"
+    }
+  ]
+}
