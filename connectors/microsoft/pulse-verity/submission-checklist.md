@@ -9,7 +9,8 @@ Statuses describe this repository package. They do not assert Partner Center app
 - [x] OpenAPI contains one runtime MCP endpoint and no invented REST actions.
 - [x] Authentication maps to the live `Authorization: Bearer <developer key>` route.
 - [x] No key, access token, password, OAuth client secret, or test credential is committed.
-- [x] All documented tools are read-only and match the hosted server's five-tool contract.
+- [x] Candidate docs distinguish five read-only data tools from one private feedback report tool.
+- [ ] Verify the deployed six-tool contract before a new connector submission.
 - [x] Public docs distinguish signed receipt fields from unsigned metadata.
 - [x] Public docs describe unavailable prices as unavailable rather than zero.
 - [x] `intro.md`, reviewer cases, deployment instructions, support, privacy, and known limitations are present.

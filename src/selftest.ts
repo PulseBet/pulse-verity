@@ -5,7 +5,7 @@ import fs from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
-  canonicalPricePayload, verifySignature, INDEX_SIG_VERSION, SERVER_VERSION,
+  canonicalPricePayload, verifySignature, verifyRecordV2, INDEX_SIG_VERSION, INDEX_SIG_VERSION_V2, SERVER_VERSION,
   PublicKeyCache, KEY_CACHE_TTL_MS, KEY_REFRESH_COOLDOWN_MS, MAX_VERIFICATION_KEYS,
   createApiClient, createIndexServer, ApiFailure, API_BASE, MAX_RESPONSE_BYTES,
   REQUEST_TIMEOUT_MS, describeApiError, redactCredentials
@@ -278,12 +278,42 @@ for (const body of ["not-json", "[]", "null", '{"price":1e999}', '{"a":'.repeat(
 // Exercise the actual MCP transport and schemas, not only implementation helpers.
 const calls: Array<{ path: string; params: Record<string, string> }> = [];
 const signedRow = { ...exactReceipt, tier: "consensus", confidence: 0.8, interval: { lower: 1.2, upper: 1.3 } };
+// This explicit fixture pins the public index contract independently of the verifier's list.
+const fullRow = {
+  ...signedRow, engine: "verity", sources: 12, dispersionBps: 0.45,
+  cadence: { band: "ten-second", calculatedAgeMs: 15, newestSourceAgeMs: 4,
+    oldestSourceAgeMs: 500, p50UpdateMs: 100, p95UpdateMs: 450 }
+};
+const fullCanonical = [
+  "pulse-index-v2", 'symbol="BTC"', "price=1.23", 'priceText="1.230000"',
+  "at=" + JSON.stringify(fullRow.at), "grade=" + JSON.stringify(fullRow.grade),
+  'engine="verity"', "sources=12", 'tier="consensus"', "confidence=0.8", "dispersionBps=0.45",
+  "interval.lower=1.2", "interval.upper=1.3", 'cadence.band="ten-second"',
+  "cadence.calculatedAgeMs=15", "cadence.newestSourceAgeMs=4", "cadence.oldestSourceAgeMs=500",
+  "cadence.p50UpdateMs=100", "cadence.p95UpdateMs=450"
+].join("\n");
+function signedV2(canonical: string) {
+  return { sig: INDEX_SIG_VERSION_V2, canonical, kid: "current", signature:
+    crypto.sign("sha256", Buffer.from(canonical, "utf8"), { key: current.privateKey, dsaEncoding: "ieee-p1363" }).toString("base64") };
+}
+const fullPrint = { ...fullRow, v2: signedV2(fullCanonical) };
+ok(verifyRecordV2(fullPrint, current.pem).valid, "v2 verifies the signed index record using the exact canonical bytes");
+ok(!verifyRecordV2(fullPrint, old.pem).valid, "v2 rejects a different P256 key");
+ok(!verifyRecordV2(fullPrint, rsa.publicKey.export({ type: "spki", format: "pem" }).toString()).valid,
+  "v2 rejects a non-P256 key");
+ok(!verifyRecordV2(fullRow, current.pem).valid, "v2 cannot authenticate a missing block");
+const semanticCanonical = fullCanonical.replace("price=1.23\n", "price=1.2300\n");
+ok(verifyRecordV2({ ...fullRow, v2: signedV2(semanticCanonical) }, current.pem).valid,
+  "v2 compares parsed values without reserializing signed decimal bytes");
+ok(!verifyRecordV2({ ...fullPrint, v2: { ...fullPrint.v2, canonical: semanticCanonical } }, current.pem).valid,
+  "changing canonical bytes fails even when the parsed decimal value is equal");
 const server = createIndexServer(async (path, params = {}) => {
   calls.push({ path, params });
   if (path === "/api/index/v1/pubkey") return ring;
-  if (path === "/api/index/v1/price" || path === "/api/index/v1/print") return signedRow;
-  if (path === "/api/index/v1/batch") return { observations: [signedRow, { symbol: "BAD", success: false, code: "STALE" }] };
-  return { total: 1, count: 1, rows: [{ symbol: "BTC", status: "consensus" }] };
+  if (path === "/api/index/v1/price") return signedRow;
+  if (path === "/api/index/v1/print") return { ...signedRow, deltaMs: 10 };
+  if (path === "/api/index/v1/batch") return { success: true, requested: 2, returned: 1, observations: [{...signedRow, success: true}, { symbol: "BAD", success: false, code: "STALE", message: "No current print" }] };
+  return { engine: "verity", total: 1, count: 1, bands: ["ten-second"], note: "Synthetic catalog", rows: [{ symbol: "BTC", status: "consensus", price: 1.23, at: signedRow.at, venues: 12, freshVenues: 12, quotes: ["USD"], cadence: fullRow.cadence, ambiguousTicker: false }] };
 });
 const client = new Client({ name: "offline-selftest", version: SERVER_VERSION });
 const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
@@ -292,10 +322,10 @@ await client.connect(clientTransport);
 try {
   ok(client.getServerVersion()?.version === SERVER_VERSION, "MCP handshake reports the release version");
   const { tools } = await client.listTools();
-  ok(tools.length === 5 && ["get_index_price", "get_index_batch", "list_index_assets", "get_settlement_print", "verify_print"]
-    .every((name) => tools.some((tool) => tool.name === name)), "existing tool names remain and exactly two bounded read tools are added");
-  ok(tools.every((tool) => tool.annotations?.readOnlyHint && tool.annotations?.destructiveHint === false),
-    "all advertised MCP tools are read-only");
+  ok(tools.length === 6 && ["get_index_price", "get_index_batch", "list_index_assets", "get_settlement_print", "verify_print", "submit_verity_feedback"]
+    .every((name) => tools.some((tool) => tool.name === name)), "existing tools remain and one separate feedback write tool is registered");
+  ok(tools.filter((tool) => tool.name !== "submit_verity_feedback").every((tool) => tool.annotations?.readOnlyHint && tool.annotations?.destructiveHint === false),
+    "price and verification tools stay read-only");
   const priceResult = await client.callTool({ name: "get_index_price", arguments: { symbol: "BTC" } });
   const priceOutput = priceResult.structuredContent as Record<string, unknown>;
   ok(priceOutput.priceText === "1.230000" && priceOutput.confidence === 0.8,
@@ -314,7 +344,71 @@ try {
   const verified = await client.callTool({ name: "verify_print", arguments: signedRow });
   const verifiedOutput = verified.structuredContent as Record<string, unknown>;
   ok(verifiedOutput.valid === true && verifiedOutput.metadataSigned === false
-    && verifiedOutput.verifiedWithKid === "old", "MCP verification returns exact-key result and explicit unsigned metadata boundary");
+    && verifiedOutput.recordValid === false && verifiedOutput.verificationScope === "price-only"
+    && verifiedOutput.verifiedWithKid === "old", "legacy verification stays price-only and does not claim signed quality");
+  const callVerify = async (print: Record<string, unknown>) => {
+    const response = await client.callTool({ name: "verify_print", arguments: print });
+    ok(response.isError !== true, "well-formed verification request completes through MCP");
+    return response.structuredContent as Record<string, unknown>;
+  };
+  const fullResult = await callVerify(fullPrint);
+  ok(fullResult.valid === true && fullResult.recordValid === true && fullResult.metadataSigned === true
+    && fullResult.verificationScope === "full-record", "MCP requires both signatures to authenticate the full record");
+  const v2Result = fullResult.v2 as Record<string, unknown>;
+  ok(fullResult.verifiedWithKid === "old" && v2Result.verifiedWithKid === "current",
+    "v1 and v2 select their own exact published key IDs");
+  ok(Object.keys(v2Result.signedFields as object).length === 18
+    && (v2Result.signedFields as Record<string, unknown>)["cadence.p95UpdateMs"] === 450,
+    "MCP schema retains all 18 signed fields, including nested cadence");
+  for (const [path, altered] of [
+    ["sources", { ...fullPrint, sources: 1 }],
+    ["confidence", { ...fullPrint, confidence: 1 }],
+    ["tier", { ...fullPrint, tier: "verified" }],
+    ["engine", { ...fullPrint, engine: "altered" }],
+    ["dispersionBps", { ...fullPrint, dispersionBps: 9 }],
+    ["interval.lower", { ...fullPrint, interval: { ...fullPrint.interval, lower: 0 } }],
+    ["cadence.p95UpdateMs", { ...fullPrint, cadence: { ...fullPrint.cadence, p95UpdateMs: 1 } }],
+    ["cadence.band", { ...fullPrint, cadence: { ...fullPrint.cadence, band: "altered" } }],
+    ["sources", { ...fullPrint, sources: undefined }]
+  ] as Array<[string, Record<string, unknown>]>) {
+    const result = await callVerify(altered);
+    const verification = result.v2 as Record<string, unknown>;
+    ok(result.valid === true && result.recordValid === false && result.metadataSigned === false
+      && result.verificationScope === "invalid" && verification.signatureValid === true
+      && (verification.mismatches as string[]).includes(path), "altered " + path + " cannot be accepted as a verified record");
+  }
+  const stripped = await callVerify({ ...fullPrint, sources: 999, v2: undefined });
+  ok(stripped.valid === true && stripped.recordValid === false && stripped.metadataSigned === false
+    && stripped.verificationScope === "price-only" && stripped.v2 === null,
+    "stripping v2 cannot authenticate edited quality even though the legacy price signature passes");
+  for (const kid of ["unknown", "old"]) {
+    const result = await callVerify({ ...fullPrint, v2: { ...fullPrint.v2, kid } });
+    ok(result.recordValid === false && result.verificationScope === "invalid"
+      && (result.v2 as Record<string, unknown>).signatureValid === false,
+      "v2 never falls back from the " + kid + " key ID to the actual signer");
+  }
+  const reordered = fullCanonical.split("\n");
+  [reordered[6], reordered[7]] = [reordered[7], reordered[6]];
+  for (const canonical of [
+    fullCanonical.replace("pulse-index-v2", "pulse-round-v2"),
+    fullCanonical.replace("\nsources=12", ""),
+    reordered.join("\n"),
+    fullCanonical.replace("sources=12", "sources=invalid-json"),
+    fullCanonical.replace("sources=12", "sources=1e999"),
+    fullCanonical + "\nsources=12",
+    fullCanonical.replace("sources=12", "sources={}")
+  ]) {
+    const result = await callVerify({ ...fullRow, v2: signedV2(canonical) });
+    ok(result.valid === true && result.recordValid === false && result.metadataSigned === false
+      && result.verificationScope === "invalid", "even a signed malformed or partial canonical cannot authenticate the index record");
+  }
+  const invalidPrice = await callVerify({ ...fullPrint, signature: Buffer.alloc(64).toString("base64") });
+  ok(invalidPrice.valid === false && invalidPrice.recordValid === false && invalidPrice.metadataSigned === false
+    && invalidPrice.verificationScope === "invalid" && (invalidPrice.v2 as Record<string, unknown>).valid === true,
+    "a passing v2 check cannot override a failing v1 check");
+  const envelope = await callVerify({ ...fullPrint, deltaMs: 1234, readMs: 50, billedUnits: 999, success: true });
+  ok(envelope.recordValid === true && !("deltaMs" in ((envelope.v2 as Record<string, unknown>).signedFields as object)),
+    "request-envelope fields are explicitly outside the 18 signed fields");
   const beforeInvalid = calls.length;
   for (const [name, args] of [
     ["get_index_batch", { symbols: [] }],

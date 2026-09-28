@@ -53,13 +53,14 @@ try {
   assert.equal(client.getServerVersion()?.version, pkg.version);
   const { tools } = await client.listTools();
   assert.deepEqual(tools.map(({ name }) => name).sort(), [
-    "get_index_batch", "get_index_price", "get_settlement_print", "list_index_assets", "verify_print"
+    "get_index_batch", "get_index_price", "get_settlement_print", "list_index_assets", "submit_verity_feedback", "verify_print"
   ]);
-  assert(tools.every(({ annotations }) => annotations?.readOnlyHint === true));
+  assert(tools.filter(({ name }) => name !== "submit_verity_feedback").every(({ annotations }) => annotations?.readOnlyHint === true));
+  assert.equal(tools.find(({ name }) => name === "submit_verity_feedback").annotations.readOnlyHint, false);
   const needsKey = await client.callTool({ name: "get_index_batch", arguments: { symbols: ["BTC", "ETH"] } });
   assert.match(JSON.stringify(needsKey), /free.*key|key.*free/i);
   assert.match(JSON.stringify(needsKey), /thepulse\.markets\/developers/);
-  console.log(`PASS: installed Gemini manifest starts ${candidateTarball ? "candidate tarball" : "npm release"}, exposes five read-only tools, and handles missing key`);
+  console.log(`PASS: installed Gemini manifest starts ${candidateTarball ? "candidate tarball" : "npm release"}, exposes five data tools and private feedback, and handles missing key`);
   if (live) {
     const result = await client.callTool({ name: "get_index_price", arguments: { symbol: "BTC" } });
     assert.notEqual(result.isError, true);
@@ -71,6 +72,7 @@ try {
     const verified = await client.callTool({ name: "verify_print", arguments: print });
     const verification = verified.structuredContent ?? JSON.parse(verified.content.find((item) => item.type === "text").text);
     assert.equal(verification.valid, true);
+    assert.equal(verification.recordValid, true);
     console.log("PASS: keyless BTC sample returned and its signature verified");
   }
 } finally {

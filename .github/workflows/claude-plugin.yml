@@ -39,8 +39,9 @@ jobs:
           cat "$RUNNER_TEMP/verity-claude-plugin-details.txt"
           node scripts/claude-plugin-test.mjs --cli-details "$RUNNER_TEMP/verity-claude-plugin-details.txt"
       - run: npm ci --ignore-scripts
-      - name: Check published keyless stdio package
-        run: node scripts/claude-plugin-smoke.mjs
+      - run: npm run build
+      - name: Check candidate keyless stdio package
+        run: node scripts/claude-plugin-smoke.mjs --candidate-entry "$GITHUB_WORKSPACE/dist/index.js"
       - name: Verify one live sample when requested
         if: github.event_name == 'workflow_dispatch' && inputs.live_sample
-        run: node scripts/claude-plugin-smoke.mjs --live
+        run: node scripts/claude-plugin-smoke.mjs --candidate-entry "$GITHUB_WORKSPACE/dist/index.js" --live

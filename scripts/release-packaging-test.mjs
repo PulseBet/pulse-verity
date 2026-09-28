@@ -9,7 +9,7 @@ import { test } from "node:test";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const read = (path) => readFileSync(join(root, path), "utf8");
 const pkg = JSON.parse(read("package.json"));
-const runtimeFiles = ["dist/index.js", "dist/quotaError.js"];
+const runtimeFiles = ["dist/index.js", "dist/quotaError.js", "dist/mcpContracts.js", "dist/feedbackContract.js"];
 
 function command(executable, args, cwd = root) {
   const result = spawnSync(executable, args, { cwd, encoding: "utf8", timeout: 30_000 });
@@ -95,7 +95,7 @@ test("npm pack JSON rejects ambiguous containers and malformed package records",
   assert.throws(() => parsePackedReport("not json", syntheticPackage));
 });
 
-test("the packed npm release contains the entry point and its quota module", () => {
+test("the packed npm release contains the entry point and all runtime modules", () => {
   const directory = mkdtempSync(join(tmpdir(), "verity-release-pack-"));
   try {
     const lock = JSON.parse(read("package-lock.json"));
@@ -108,7 +108,7 @@ test("the packed npm release contains the entry point and its quota module", () 
   }
 });
 
-test("an alias preserves both runtime modules in its actual npm archive", () => {
+test("an alias preserves all runtime modules in its actual npm archive", () => {
   const directory = mkdtempSync(join(tmpdir(), "verity-alias-pack-"));
   const alias = join(directory, "alias");
   try {
@@ -122,7 +122,7 @@ test("an alias preserves both runtime modules in its actual npm archive", () => 
 
 test("the desktop release stages the quota module and publishes all Gemini platforms together", () => {
   const workflow = read(".github/workflows/publish.yml");
-  assert(workflow.includes('cp dist/index.js dist/quotaError.js "$MCPB_STAGE/dist/"'));
+  assert(workflow.includes('cp dist/index.js dist/quotaError.js dist/mcpContracts.js dist/feedbackContract.js "$MCPB_STAGE/dist/"'));
   const create = workflow.match(/gh release create[^]*?--notes [^\n]+/)?.[0];
   assert(create, "The release must be created with its full asset set");
   assert(create.includes('"$RUNNER_TEMP/pulse-verity-$MCPB_VERSION.mcpb"'));

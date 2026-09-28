@@ -4,7 +4,7 @@ This plan provides repeatable technical and responsible-AI checks without storin
 
 ## Secure setup
 
-1. Create a dedicated reviewer account with the lowest access tier that can exercise all five tools.
+1. Create a dedicated reviewer account with the lowest access tier that can exercise all six tools.
 2. Create one review-only developer key and record its identifier separately from its secret.
 3. Put `Bearer ` and the key in the connection's protected **Authorization** field.
 4. Never place the key in this file, an agent prompt, a screenshot, source control, or a test transcript.
@@ -19,8 +19,9 @@ Call MCP `tools/list` and require exactly these tools:
 - `list_index_assets`
 - `get_settlement_print`
 - `verify_print`
+- `submit_verity_feedback`
 
-Fail the review if any write, trade, wallet, transfer, account, credential, or key-management tool appears.
+Only `submit_verity_feedback` may declare a write, limited to a private report. Fail the review if any trade, wallet, transfer, account, credential, key-management or other write tool appears.
 
 ## Functional cases
 
@@ -61,9 +62,15 @@ The submission evidence should include:
 - Solution Checker output;
 - custom-connector validation output;
 - a timestamped, redacted results table for the cases above;
-- a screenshot or export proving the five discovered tool names;
+- a screenshot or export proving the six discovered tool names;
 - confirmation that the review key was delivered only through Microsoft's secure field;
 - the production privacy, support, and terms URLs;
 - any limitation or variance observed during testing.
 
 Evidence must not include a developer key, password, access token, refresh token, client secret, personal email address, or user market activity.
+
+## Feedback cases
+
+Use an isolated test store to submit a synthetic report through `submit_verity_feedback`; require a saved tracking receipt, then resubmit and require the same receipt with `duplicate: true`. Verify disabled intake returns `FEEDBACK_DISABLED` without a saved receipt or automatic retry. Confirm unknown transcript/attachment fields and recognizable credentials are refused before storage. Do not write synthetic reports to production during certification without approval.
+
+For full-record verification, pass an unchanged v2 print and require `recordValid: true`. Alter its source count and require `recordValid: false`, even if legacy `valid` remains true.

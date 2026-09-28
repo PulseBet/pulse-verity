@@ -64,7 +64,7 @@ jobs:
           MCPB_STAGE="$(mktemp -d "$RUNNER_TEMP/pulse-mcpb.XXXXXX")"
           mkdir -p "$MCPB_STAGE/dist"
           cp package.json package-lock.json manifest.json README.md LICENSE SECURITY.md .mcpbignore "$MCPB_STAGE/"
-          cp dist/index.js dist/quotaError.js "$MCPB_STAGE/dist/"
+          cp dist/index.js dist/quotaError.js dist/mcpContracts.js dist/feedbackContract.js "$MCPB_STAGE/dist/"
           npm ci --omit=dev --ignore-scripts --prefix "$MCPB_STAGE"
           npx --yes --package=@anthropic-ai/mcpb@2.1.2 mcpb validate "$MCPB_STAGE/manifest.json"
           npx --yes --package=@anthropic-ai/mcpb@2.1.2 mcpb pack "$MCPB_STAGE" "$RUNNER_TEMP/pulse-verity-$MCPB_VERSION.mcpb"

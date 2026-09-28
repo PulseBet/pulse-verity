@@ -1,0 +1,37 @@
+{
+  "note": "Synthetic offline verification fixture. Historical timestamp; never a live quote. Public key only.",
+  "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEOo+D9sllegObcx8uq9TZfwFlBtI7\nZF/7lNLgrNvM7yicLR/YkYUvTJsA32j15Mzp49S8QMPkBNBCe3w2BT1Y4A==\n-----END PUBLIC KEY-----\n",
+  "print": {
+    "symbol": "BTC",
+    "price": 100.25,
+    "priceText": "100.25",
+    "at": "2026-09-27T12:00:00.000Z",
+    "grade": "consensus",
+    "kid": "synthetic-agent-fixture",
+    "sig": "pulse-index-v1",
+    "engine": "pulse-verity-index",
+    "sources": 3,
+    "tier": "consensus",
+    "confidence": 0.99,
+    "dispersionBps": 1.2,
+    "interval": {
+      "lower": 100.2,
+      "upper": 100.3
+    },
+    "cadence": {
+      "band": "real-time",
+      "calculatedAgeMs": 20,
+      "newestSourceAgeMs": 10,
+      "oldestSourceAgeMs": 90,
+      "p50UpdateMs": 180,
+      "p95UpdateMs": 230
+    },
+    "signature": "f+VrfqG9kCO/BTXu8tgFooeXC0Nwa8+MDA5NI/is3x/iUvKSMwBTkD+/UluAjuw5zlfPWBxB133zJ/zivd4Dmg==",
+    "v2": {
+      "sig": "pulse-index-v2",
+      "canonical": "pulse-index-v2\nsymbol=\"BTC\"\nprice=100.25\npriceText=\"100.25\"\nat=\"2026-09-27T12:00:00.000Z\"\ngrade=\"consensus\"\nengine=\"pulse-verity-index\"\nsources=3\ntier=\"consensus\"\nconfidence=0.99\ndispersionBps=1.2\ninterval.lower=100.2\ninterval.upper=100.3\ncadence.band=\"real-time\"\ncadence.calculatedAgeMs=20\ncadence.newestSourceAgeMs=10\ncadence.oldestSourceAgeMs=90\ncadence.p50UpdateMs=180\ncadence.p95UpdateMs=230",
+      "signature": "AEn9NDfJ0bzkb7aruK44zow33TOZu/z5xHtCt7jjVeovzCaUzDEfMW4HKKoVlUzLgcbklz6580Hk4BysNAnFcg==",
+      "kid": "synthetic-agent-fixture"
+    }
+  }
+}
