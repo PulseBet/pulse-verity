@@ -64,7 +64,7 @@ jobs:
           MCPB_STAGE="$(mktemp -d "$RUNNER_TEMP/pulse-mcpb.XXXXXX")"
           mkdir -p "$MCPB_STAGE/dist"
           cp package.json package-lock.json manifest.json README.md LICENSE SECURITY.md .mcpbignore "$MCPB_STAGE/"
-          cp dist/index.js dist/quotaError.js "$MCPB_STAGE/dist/"
+          cp dist/index.js dist/quotaError.js dist/mcpContracts.js dist/feedbackContract.js "$MCPB_STAGE/dist/"
           npm ci --omit=dev --ignore-scripts --prefix "$MCPB_STAGE"
           npx --yes --package=@anthropic-ai/mcpb@2.1.2 mcpb validate "$MCPB_STAGE/manifest.json"
           npx --yes --package=@anthropic-ai/mcpb@2.1.2 mcpb pack "$MCPB_STAGE" "$RUNNER_TEMP/pulse-verity-$MCPB_VERSION.mcpb"
@@ -93,7 +93,7 @@ jobs:
             "$RUNNER_TEMP/verity-gemini/assets/win32.pulse-verity.tar.gz" \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Pulse Verity $MCPB_VERSION" \
-            --notes "Clarify desktop extension coverage, account allowances and signed-field boundaries. Describe local verification's published-key dependency and link the public Grok Bot setup template. No price, authentication or quota behavior changes. Includes npm, desktop and Gemini packages; existing installs must update."
+            --notes "Add complete v2 record verification alongside the legacy price signature. Publish tool output schemas, validate successful responses, and return bounded structured errors with request identifiers. Add separately authenticated feedback submission, available only when service intake is enabled; intake remains disabled at release. No price calculations change. Includes npm, desktop and Gemini packages; existing installs must update."
 
   verify-published-gemini:
     needs: publish-desktop-bundle

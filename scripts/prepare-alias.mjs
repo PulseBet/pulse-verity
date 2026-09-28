@@ -17,15 +17,15 @@ if (!allowed.has(name) || !output) {
 fs.mkdirSync(output, { recursive: true });
 fs.mkdirSync(path.join(output, "dist"), { recursive: true });
 fs.copyFileSync("dist/index.js", path.join(output, "dist", "index.js"));
-fs.copyFileSync("dist/quotaError.js", path.join(output, "dist", "quotaError.js"));
+for (const file of ["quotaError.js", "mcpContracts.js", "feedbackContract.js"]) fs.copyFileSync("dist/" + file, path.join(output, "dist", file));
 for (const file of ["LICENSE", "SECURITY.md"]) fs.copyFileSync(file, path.join(output, file));
 
 const canonical = JSON.parse(fs.readFileSync("package.json", "utf8"));
 canonical.name = name;
 canonical.description = `Functional install alias for the Pulse Verity Index MCP server. Canonical package: pulse-verity`;
 canonical.bin = { [name]: "dist/index.js" };
-canonical.files = ["dist/index.js", "dist/quotaError.js", "README.md", "LICENSE", "SECURITY.md"];
+canonical.files = ["dist/index.js", "dist/quotaError.js", "dist/mcpContracts.js", "dist/feedbackContract.js", "README.md", "LICENSE", "SECURITY.md"];
 canonical.scripts = {};
 delete canonical.devDependencies;
 fs.writeFileSync(path.join(output, "package.json"), `${JSON.stringify(canonical, null, 2)}\n`);
-fs.writeFileSync(path.join(output, "README.md"), `# ${name}\n\nThis is a functional install alias for the **Pulse Verity Index** MCP server.\n\nUse the canonical package for new integrations:\n\n\`\`\`bash\nnpx -y pulse-verity\n\`\`\`\n\nThis alias runs the same read-only tools as \`pulse-verity\`.\n`);
+fs.writeFileSync(path.join(output, "README.md"), `# ${name}\n\nThis is a functional install alias for the **Pulse Verity Index** MCP server.\n\nUse the canonical package for new integrations:\n\n\`\`\`bash\nnpx -y pulse-verity\n\`\`\`\n\nThis alias runs the same price, verification and private feedback tools as \`pulse-verity\`.\n`);

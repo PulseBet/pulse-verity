@@ -1,8 +1,8 @@
 {
   "name": "pulse-verity",
-  "version": "1.2.6",
+  "version": "1.3.0",
   "mcpName": "io.github.PulseBet/pulse-verity",
-  "description": "Read-only MCP server for signed, verifiable Pulse Verity Index crypto prices",
+  "description": "MCP server for signed, verifiable Pulse Verity Index crypto prices and private API feedback",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -12,15 +12,17 @@
   "files": [
     "dist/index.js",
     "dist/quotaError.js",
+    "dist/mcpContracts.js",
+    "dist/feedbackContract.js",
     "README.md",
     "LICENSE",
     "SECURITY.md"
   ],
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build && node dist/selftest.js && node scripts/entrypoint-test.mjs",
+    "prepublishOnly": "npm run build && node dist/selftest.js && node dist/agenttest.js && node scripts/entrypoint-test.mjs",
     "start": "node dist/index.js",
-    "test": "npm run build && node dist/selftest.js && node scripts/words-test.mjs && node scripts/keyless-test.mjs && node scripts/manifest-copy-test.mjs && node scripts/manifest-tools-test.mjs && node scripts/cursor-plugin-test.mjs && node scripts/grok-plugin-test.mjs && node scripts/gemini-extension-test.mjs && node scripts/release-packaging-test.mjs && node scripts/entrypoint-test.mjs",
+    "test": "npm run build && node dist/selftest.js && node dist/agenttest.js && node scripts/words-test.mjs && node scripts/keyless-test.mjs && node scripts/manifest-copy-test.mjs && node scripts/manifest-tools-test.mjs && node scripts/cursor-plugin-test.mjs && node scripts/grok-plugin-test.mjs && node scripts/gemini-extension-test.mjs && node scripts/release-packaging-test.mjs && node scripts/entrypoint-test.mjs",
     "check:words": "node scripts/words-test.mjs",
     "prepare:alias": "node scripts/prepare-alias.mjs",
     "clean": "rm -rf dist",

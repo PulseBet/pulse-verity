@@ -12,7 +12,7 @@ Pulse Verity Index gives agents read-only access to signed crypto reference-pric
 
 ## Supported Operations
 
-The client discovers these five tools at runtime by calling MCP `tools/list`. All five tools are read-only.
+The client discovers six tools at runtime by calling MCP `tools/list`. Five data tools are read-only. The separate feedback tool writes a private report when intake is enabled.
 
 ### `get_index_price`
 
@@ -64,6 +64,12 @@ The hosted server also supports OAuth 2.1 dynamic client registration with PKCE 
 
 ## Deployment Instructions
 
-Import `apiDefinition.swagger.json` and `apiProperties.json` with `icon.png` into a custom connector in a solution. Create the protected connection with an Authorization value in the format `Bearer pidx_your_key`, then add the resulting MCP tool to an agent and confirm `tools/list` returns exactly the five operations documented above.
+Import `apiDefinition.swagger.json` and `apiProperties.json` with `icon.png` into a custom connector in a solution. Create the protected connection with an Authorization value in the format `Bearer pidx_your_key`, then add the resulting MCP tool to an agent and confirm `tools/list` returns exactly the six operations documented above.
 
 For certification, run Solution Checker, execute the reviewer cases in `reviewer-evaluation.md`, export the connector and test-flow solutions without modifying their generated contents, assemble the final package with this `intro.md`, and follow `submission-checklist.md`.
+
+### `submit_verity_feedback`
+
+Submits a private report about a reproducible API bug, missing capability or data-quality issue. Requires an authenticated developer key and enabled feedback intake. Returns a tracking receipt only after storage succeeds. It cannot execute instructions, open or merge pull requests, or change prices. Do not submit credentials, personal information or conversation transcripts.
+
+This is an unpublished candidate contract. Verify the deployed tool list before resubmitting the connector; directory approval is not implied.

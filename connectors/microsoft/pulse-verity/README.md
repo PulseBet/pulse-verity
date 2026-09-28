@@ -10,7 +10,7 @@ This directory is the source package for onboarding the production Pulse Verity 
 | Transport | MCP Streamable HTTP over `POST` |
 | Authentication in this artifact | `Authorization: Bearer <developer key>` |
 | Alternate live authentication | OAuth 2.1 dynamic registration and PKCE with discovery |
-| Tool count | Five, all read-only |
+| Tool count | Six: five data reads and one private feedback report |
 | Public documentation | `https://thepulse.markets/developers` |
 | Privacy | `https://thepulse.markets/developers/privacy` |
 | Support | `support@thepulse.markets` |

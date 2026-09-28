@@ -71,15 +71,16 @@ const expectedTools = [
   "get_index_batch",
   "list_index_assets",
   "get_settlement_print",
-  "verify_print"
+  "verify_print",
+  "submit_verity_feedback"
 ];
 for (const tool of expectedTools) {
   assert(intro.includes("`" + tool + "`"), `intro.md must document ${tool}`);
   assert(reviewer.includes("`" + tool + "`"), `reviewer-evaluation.md must test ${tool}`);
 }
-assert.match(intro, /All five tools are read-only/);
+assert.match(intro, /Five data tools are read-only/);
 assert.match(intro, /never means that the price is zero/);
-assert.match(reviewer, /Fail the review if any write, trade, wallet, transfer/);
+assert.match(reviewer, /Fail the review if any trade, wallet, transfer/);
 assert.match(checklist, /do not assert Partner Center approval or certification/);
 
 const allText = [intro, reviewer, checklist, read("README.md").toString("utf8"), JSON.stringify(props)].join("\n");
