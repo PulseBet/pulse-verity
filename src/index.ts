@@ -10,7 +10,7 @@ import { readQuotaDetails, quotaErrorGuidance } from "./quotaError.js";
 import type { QuotaDetails } from "./quotaError.js";
 import { toolOutputShape, validateToolSuccess, errorSchema, requestIdSchema } from "./mcpContracts.js";
 import type { ReadToolName } from "./mcpContracts.js";
-import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
+import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, containsFeedbackTranscript, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
 import type { FeedbackInput } from "./feedbackContract.js";
 
 export const SERVER_VERSION = "1.2.6";
@@ -296,6 +296,7 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
       const parsed = feedbackInputSchema.safeParse(feedback);
       if (!parsed.success || Buffer.byteLength(JSON.stringify(parsed.data), "utf8") > FEEDBACK_MAX_BYTES) throw new FeedbackFailure("FEEDBACK_INVALID");
       feedback = parsed.data;
+      if (containsFeedbackTranscript(feedback)) throw new FeedbackFailure("FEEDBACK_INVALID");
       if (containsFeedbackSecret(feedback)) throw new FeedbackFailure("FEEDBACK_SENSITIVE");
     }
     const hasKey = hasUsableKey(apiKey);
@@ -552,6 +553,7 @@ export function createIndexServer(api: ApiClient = createApiClient(process.env.P
     const requestId = crypto.randomUUID();
     try {
       if (Buffer.byteLength(JSON.stringify(input), "utf8") > FEEDBACK_MAX_BYTES) throw new FeedbackFailure("FEEDBACK_INVALID");
+      if (containsFeedbackTranscript(input)) throw new FeedbackFailure("FEEDBACK_INVALID");
       if (containsFeedbackSecret(input)) throw new FeedbackFailure("FEEDBACK_SENSITIVE");
       const output = await api("/api/index/v1/feedback", {}, input);
       const parsed = z.object({ success: z.literal(true), feedback: feedbackReceiptSchema, duplicate: z.boolean() }).safeParse(output);

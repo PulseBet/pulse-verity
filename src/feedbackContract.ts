@@ -39,7 +39,18 @@ export const feedbackFailureCodes = [
 
 /** Reject recognizable credentials rather than redact and retain a partial secret.
  * This is defense in depth, not a claim that arbitrary prose can be classified perfectly. */
+function feedbackText(value: unknown): string {
+  const strings = (item: unknown): string[] => typeof item === 'string' ? [item]
+    : Array.isArray(item) ? item.flatMap(strings)
+      : item && typeof item === 'object' ? Object.entries(item).flatMap(([key, val]) => [key, ...strings(val)]) : [];
+  // Examine raw strings: JSON-stringifying first escapes embedded credential
+  // snippets and can hide quotes from the recognizable-shape checks below.
+  return strings(value).join('\n');
+}
+export function containsFeedbackTranscript(value: unknown): boolean {
+  return (feedbackText(value).match(/^\s*(?:system|developer|user|assistant)\s*:/gim) || []).length >= 2;
+}
 export function containsFeedbackSecret(value: unknown): boolean {
-  const text = JSON.stringify(value);
+  const text = feedbackText(value);
   return /(?:\bpidx_[a-z0-9_-]+|\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:sk|ghp|github_pat|xox[baprs])[-_][a-z0-9_-]{8,}|\bAKIA[A-Z0-9]{16}\b|\beyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+|(?:api[ _-]?key|access[ _-]?token|refresh[ _-]?token|password|authorization|cookie|seed[ _-]?phrase|private[ _-]?key)\s*["']?\s*[:=]\s*["']?[^\s",}]{3,}|https?:\/\/[^\s/@:]+:[^\s/@]+@)/i.test(text);
 }

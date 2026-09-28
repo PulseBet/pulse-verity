@@ -84,7 +84,7 @@ await withClient(createApiClient(privateKey, fetcher), async client => {
   const repeated = await client.callTool({name:"submit_verity_feedback",arguments:report});
   check(body(repeated).duplicate === true && (body(repeated).feedback as any).id === receipt.id, "server deduplication receipt survives transport");
   const before = writes;
-  for (const invalid of [{...report,transcript:"private text"},{...report,expected:"pidx_DO_NOT_TRANSMIT"},{...report,actual:"password=do-not-transmit"}]) {
+  for (const invalid of [{...report,transcript:"private text"},{...report,expected:"pidx_DO_NOT_TRANSMIT"},{...report,actual:"password=do-not-transmit"},{...report,actual:'example {"api_key": "secret-value"}'},{...report,actual:"user: private question\nassistant: private answer"}]) {
     const result = await client.callTool({name:"submit_verity_feedback",arguments:invalid});
     check(result.isError === true, "unknown/private feedback fields are refused");
   }
