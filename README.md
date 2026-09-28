@@ -75,7 +75,7 @@ and `/.well-known/oauth-protected-resource/api/index/mcp`.
 
 ### Claude Code / Cowork plugin
 
-For the guided price-check skill, pinned `pulse-verity@1.2.6` MCP runtime,
+For the guided price-check skill, pinned `pulse-verity@1.3.0` MCP runtime,
 local setup and three example prompts, see the [Claude plugin guide](docs/claude-code.md).
 Keyless samples are available; wider access requires the user's own key and
 applicable allowance. Cowork runtime constraints are documented in the guide.
@@ -84,7 +84,7 @@ This package is separate from the Desktop MCPB; directory approval is not implie
 ### Cursor marketplace package
 
 This repository includes `.cursor-plugin/plugin.json` and `mcp.json` for
-Cursor's plugin loader. The plugin starts the released `pulse-verity@1.2.6`
+Cursor's plugin loader. The plugin is pinned to `pulse-verity@1.3.0`
 package with `npx`; Node.js 18 or newer is required. No platform engine code
 or private repository access is included.
 
@@ -108,7 +108,7 @@ grok plugin install PulseBet/pulse-verity --trust
 ```
 
 Start a new Grok Build session, then ask for the current Bitcoin index price.
-The plugin starts `npx -y pulse-verity@1.2.6`; Node.js 18 or newer and npm are
+The plugin starts `npx -y pulse-verity@1.3.0`; Node.js 18 or newer and npm are
 required. BTC, ETH and SOL samples work without an API key. To enable
 catalogue, batch and settlement-print requests, set `PULSE_API_KEY` in the
 environment that launches Grok Build, then start a new session. Get a free key
@@ -140,7 +140,7 @@ gemini extensions install https://github.com/PulseBet/pulse-verity --skip-settin
 ```
 
 Restart Gemini CLI, then ask for the current Bitcoin index price. The extension
-starts the released `pulse-verity@1.2.6` package through `npx`; Node.js and npm
+starts the pinned `pulse-verity@1.3.0` package through `npx`; Node.js and npm
 must be available. BTC, ETH and SOL samples work without a key. Gemini may warn
 that the optional setting is unset; that does not prevent keyless startup.
 
@@ -190,7 +190,7 @@ env = { PULSE_API_KEY = "pidx_your_key" }
 
 ## Claude Desktop: one-click install
 
-Download [`pulse-verity-1.2.6.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.2.6/pulse-verity-1.2.6.mcpb),
+Download [`pulse-verity-1.3.0.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.3.0/pulse-verity-1.3.0.mcpb),
 open it with Claude Desktop (macOS or Windows), and leave the optional key blank
 to try BTC, ETH and SOL. Add a free key for catalogue, batch and settlement-print
 requests. The bundle contains the same compiled server modules npm ships, with its runtime
@@ -352,5 +352,7 @@ no saved receipt is claimed and the agent must not repeatedly retry.
 The tool does not run submitted instructions, create pull requests or change
 production. Humans review reports before any fix is proposed.
 
-This branch is an unpublished candidate; the pinned 1.2.6 packages and hosted
-service may expose the earlier contract until their releases are deployed.
+This branch prepares version 1.3.0. The npm commands and MCPB download above
+become available only after this release is approved and published. Existing
+1.2.6 installations remain unchanged until upgraded. Hosted deployment is
+reviewed separately; inspect its advertised tools before using new features.

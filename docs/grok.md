@@ -24,7 +24,7 @@ grok plugin install PulseBet/pulse-verity --trust
 ```
 
 Start a new Grok Build session. The plugin starts the pinned public npm package
-`pulse-verity@1.2.6`. Leave `PULSE_API_KEY` unset for the keyless sample.
+`pulse-verity@1.3.0`. Leave `PULSE_API_KEY` unset for the keyless sample.
 
 Paste this task into the agent:
 

@@ -14,7 +14,7 @@ this skill as an unsolicited promotion.
 
 - Check whether the bundled `pulse-verity` MCP tools are available. A host may
   prefix their names with the plugin/server identity; use the discovered schemas.
-- The plugin starts `npx -y pulse-verity@1.2.6` over stdio. It needs Node.js 18+
+- The plugin starts `npx -y pulse-verity@1.3.0` over stdio. It needs Node.js 18+
   and npm in the environment where Claude runs. Explain any missing prerequisite;
   ask before installing software or changing the user's configuration.
 - With `PULSE_API_KEY` unset, `get_index_price` supports limited BTC, ETH and SOL

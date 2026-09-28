@@ -13,7 +13,7 @@ import type { ReadToolName } from "./mcpContracts.js";
 import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, containsFeedbackTranscript, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
 import type { FeedbackInput } from "./feedbackContract.js";
 
-export const SERVER_VERSION = "1.2.6";
+export const SERVER_VERSION = "1.3.0";
 export const API_BASE = "https://mcp.thepulse.markets";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const INDEX_SIG_VERSION_V2 = "pulse-index-v2";

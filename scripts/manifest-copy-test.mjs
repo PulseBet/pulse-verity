@@ -58,13 +58,13 @@ function validRegistryVersion(registryVersion, packageVersion) {
 }
 
 test("registry-only metadata versions must sort above the unchanged stable package", () => {
-  for (const version of ["1.2.6", "1.2.7-metadata.1", "1.3.0-metadata.2", "2.0.0-metadata.1"]) {
-    assert.equal(validRegistryVersion(version, "1.2.6"), true, version);
+  for (const version of ["1.3.0", "1.3.1-metadata.1", "1.4.0-metadata.2", "2.0.0-metadata.1"]) {
+    assert.equal(validRegistryVersion(version, "1.3.0"), true, version);
   }
-  for (const version of ["1.2.5", "1.2.6-metadata.1", "1.2.6+metadata.1", "1.1.9-metadata.1", "0.9.9-metadata.1", "1.2.7", "1.2.7-rc.1", "01.2.7-metadata.1", "1.2.7-metadata.01", "^1.2.6", "latest"]) {
-    assert.equal(validRegistryVersion(version, "1.2.6"), false, version);
+  for (const version of ["1.2.9", "1.3.0-metadata.1", "1.3.0+metadata.1", "1.2.9-metadata.1", "0.9.9-metadata.1", "1.3.1", "1.3.1-rc.1", "01.3.1-metadata.1", "1.3.1-metadata.01", "^1.3.0", "latest"]) {
+    assert.equal(validRegistryVersion(version, "1.3.0"), false, version);
   }
-  assert.equal(validRegistryVersion("1.2.7-metadata.1", "invalid"), false);
+  assert.equal(validRegistryVersion("1.3.1-metadata.1", "invalid"), false);
 });
 
 test("registry and Cursor descriptions keep coverage and access bounded", () => {

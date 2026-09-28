@@ -24,7 +24,7 @@ check `/mcp` for the plugin's `pulse-verity` server and its tools. Review the ho
 trust prompts before allowing it to run. Invoke the skill with
 `/pulse-verity:pulse-verity-price-check` or ask for a Pulse Verity price check.
 
-The server runs the pinned npm package `pulse-verity@1.2.6`. npm may download the
+The server runs the pinned npm package `pulse-verity@1.3.0`. npm may download the
 package and its dependencies. No API key is needed for limited BTC, ETH and SOL
 price samples or receipt verification. The sample is not a paid entitlement.
 
