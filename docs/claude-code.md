@@ -1,6 +1,6 @@
 # Pulse Verity for Claude Code and Cowork
 
-This repository contains a Claude plugin: a read-only MCP connection plus a
+This repository contains a Claude plugin: an MCP connection plus a
 guided reference-price and receipt-verification skill. It is separate from the
 Claude Desktop `.mcpb` extension. Public-directory inclusion requires Anthropic's
 review; this repository alone does not establish a marketplace listing.
@@ -94,7 +94,8 @@ do not put a key in the conversation to work around the limitation.
 - At startup, npm retrieves the package from the configured registry. During tool
   calls the server sends bounded GET requests to `https://mcp.thepulse.markets`
   for prices, samples, catalogue, recorded prints and published verification keys.
-  Keyed requests send the configured key only to that origin; sample/public-key
+  The candidate feedback tool alone sends a private report with POST to
+  `/api/index/v1/feedback` when requested and enabled. Keyed requests send the configured key only to that origin; sample/public-key
   requests do not send it. Receipt verification runs locally after key retrieval.
 - This package has no trading, transfer, filesystem-reading, browser-reading or
   conversation-history tools, no hooks and no background routines. It does not

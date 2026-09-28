@@ -2,8 +2,8 @@
 
 Start with a signed BTC, ETH or SOL sample in Grok Build. Add your own Verity
 developer key when you need catalogue discovery, batch reads or recorded prints.
-Verity's five MCP tools are read-only: they do not trade, transfer funds or
-change an account.
+Verity's five data tools are read-only. The candidate adds a separate private
+feedback report tool. No tool trades, transfers funds or changes an account.
 
 ## Choose your connection
 
@@ -30,8 +30,9 @@ Paste this task into the agent:
 
 ```text
 Use Pulse Verity's get_index_price separately for BTC, ETH and SOL.
-For each successful observation, use verify_print with its original symbol,
-price, at, grade and signature, preserving priceText, kid and sig if present.
+For each successful observation, pass the whole unchanged print to verify_print,
+including v2 and its quality fields. Require recordValid=true before calling
+quality fields authenticated; valid alone only verifies the legacy price.
 Show the price, observation timestamp and verification result. Do not invent
 missing values or describe an unavailable price as zero. Do not place trades,
 start recurring requests or change any account settings.
@@ -48,8 +49,9 @@ use Grok's `/mcps` view to inspect the connection. See the official
 [MCP connection view](https://docs.x.ai/build/features/mcp-servers#in-the-tui).
 
 A valid signature authenticates the signed price fields, not the price's
-accuracy, freshness or suitability for trading. Cadence, source counts and
-other quality metadata are not covered by that signature. See
+accuracy, freshness or suitability for trading. The legacy valid result covers
+only price fields. Quality fields need the v2 recordValid result; request-envelope
+fields remain unsigned. See
 [what is signed](../README.md#signed-prices-and-catalog-data).
 
 ## Add a self-service developer key
