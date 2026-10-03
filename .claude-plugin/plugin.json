@@ -12,5 +12,21 @@
   "repository": "https://github.com/PulseBet/pulse-verity",
   "license": "MIT",
   "skills": "./claude-skills/",
-  "keywords": ["crypto", "reference-prices", "signed-receipts", "mcp"]
+  "keywords": [
+    "crypto",
+    "reference-prices",
+    "signed-receipts",
+    "mcp"
+  ],
+  "mcpServers": {
+    "pulse-verity": {
+      "type": "http",
+      "url": "https://mcp.thepulse.markets/api/index/mcp"
+    }
+  },
+  "privacyPolicyUrl": "https://thepulse.markets/developers/privacy",
+  "termsOfServiceUrl": "https://thepulse.markets/developers/terms",
+  "documentationUrl": "https://github.com/PulseBet/pulse-verity/blob/main/docs/claude-code.md",
+  "supportUrl": "https://thepulse.markets/developers",
+  "icon": "./assets/pulse-icon-1024.png"
 }
