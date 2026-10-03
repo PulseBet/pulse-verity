@@ -23,17 +23,25 @@ assert.deepEqual(config, {
   }
 });
 assert.match(skill, /^---\nname: pulse-verity-price-check\ndescription: .+\n---\n/);
-assert(skill.includes(`pulse-verity@${manifest.version}`), "Skill setup and MCP runtime must agree");
+assert.deepEqual(manifest.mcpServers, {
+  "pulse-verity": { type: "http", url: "https://mcp.thepulse.markets/api/index/mcp" }
+});
+const effectiveServers = { ...config.mcpServers, ...manifest.mcpServers };
+assert.equal(effectiveServers["pulse-verity"].type, "http");
+assert(!("command" in effectiveServers["pulse-verity"]), "Claude must not launch the root stdio server");
+assert(!("env" in effectiveServers["pulse-verity"]), "Hosted connection must not read a local API key");
+assert(skill.includes("OAuth"));
+assert(!skill.includes("npx -y"), "Skill must not start a second local server");
 assert(skill.includes("verify_print"));
 assert(skill.includes("get_index_price"));
-assert(read("docs/claude-code.md").includes(`pulse-verity@${manifest.version}`));
+assert(read("docs/claude-code.md").includes("https://mcp.thepulse.markets/api/index/mcp"));
 assert.deepEqual(readdirSync(new URL("../.claude-plugin", import.meta.url)), ["plugin.json"]);
 assert.deepEqual(readdirSync(new URL("../claude-skills", import.meta.url)), ["pulse-verity-price-check"]);
 for (const extra of ["skills", "hooks", "agents", "commands", "monitors", ".claude-plugin/marketplace.json"])
   assert(!existsSync(new URL(`../${extra}`, import.meta.url)), `Unexpected capability: ${extra}`);
 for (const field of ["hooks", "agents", "commands", "monitors", "dependencies", "experimental", "userConfig"])
   assert(!(field in manifest), `Unexpected manifest capability: ${field}`);
-console.log("PASS: Claude plugin metadata, pinned stdio config, optional key and bounded skill");
+console.log("PASS: Claude plugin metadata, hosted override, preserved root stdio config and bounded skill");
 
 // The official CLI may wrap plugin rows in an object or return an array.
 // Inspect JSON objects, never a text substring that could match an error message.
