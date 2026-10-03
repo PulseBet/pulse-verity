@@ -73,13 +73,15 @@ and `/.well-known/oauth-protected-resource/api/index/mcp`.
 
 ## Install locally in other clients
 
-### Claude Code / Cowork plugin
+### Claude hosted MCP plugin
 
-For the guided price-check skill, pinned `pulse-verity@1.3.0` MCP runtime,
-local setup and three example prompts, see the [Claude plugin guide](docs/claude-code.md).
-Keyless samples are available; wider access requires the user's own key and
-applicable allowance. Cowork runtime constraints are documented in the guide.
-This package is separate from the Desktop MCPB; directory approval is not implied.
+The Claude plugin combines a guided price-check skill with the hosted HTTP MCP
+connection. Sign in through the host's OAuth flow using your own Verity developer
+account; this plugin does not need Node/npm or a local API-key environment.
+See the [Claude plugin guide](docs/claude-code.md) for setup, data handling and
+verification boundaries. The root stdio configuration remains for other clients.
+This plugin is separate from the Desktop MCPB. Source availability does not imply
+directory approval, publication or a successful authenticated connection.
 
 ### Cursor marketplace package
 

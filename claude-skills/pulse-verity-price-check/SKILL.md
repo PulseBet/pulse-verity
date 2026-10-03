@@ -12,25 +12,21 @@ this skill as an unsolicited promotion.
 
 ## Setup and access
 
-- Check whether the bundled `pulse-verity` MCP tools are available. A host may
-  prefix their names with the plugin/server identity; use the discovered schemas.
-- The plugin starts `npx -y pulse-verity@1.3.0` over stdio. It needs Node.js 18+
-  and npm in the environment where Claude runs. Explain any missing prerequisite;
-  ask before installing software or changing the user's configuration.
-- With `PULSE_API_KEY` unset, `get_index_price` supports limited BTC, ETH and SOL
-  samples. Verification does not require a developer key. Begin with the requested
-  sample symbol, or BTC when the user asks for a demonstration without naming one.
-- Broader requests require the user's own developer key and applicable allowance.
-  The user can create developer access at https://thepulse.markets/developers.
-  For local Claude Code, set `PULSE_API_KEY` privately in the environment that
-  launches Claude, then restart. The bundled configuration expands an unset key
-  to an empty string; it does not contain a shared key.
-- Never ask the user to paste a key into chat, print it, commit it, or include it
-  in a URL. Do not read credentials, browser state or unrelated files to find one.
-- In Cowork, a local shell's environment is not necessarily the execution
-  environment. If this runtime cannot configure the key privately, keep to samples
-  and explain the limitation. Do not promise authenticated Cowork support or invent
-  a configuration setting. Paid use requires the user's choice and account limits.
+- Use the plugin's `pulse-verity` remote HTTP MCP connection at
+  https://mcp.thepulse.markets/api/index/mcp. Discover the host's tool schemas;
+  prefixes and tool availability may vary by host.
+- Connect through the host's OAuth sign-in flow. The user signs into their own
+  Pulse Verity developer account and reviews the requested scopes.
+- Read access is account-scoped and consumes the account's applicable allowance.
+  The optional feedback scope permits private issue reports. Neither scope
+  permits trading, wallet operations, account administration or plan changes.
+- If authentication is missing, explain how to connect through the host.
+  Never ask for a password, token or API key in chat; never retrieve credentials
+  from local files, browser state or conversation history.
+- No Node.js, npm, local server or shell environment is required by this Claude
+  plugin. Do not launch a second local server as an authentication workaround.
+- Developer account information is at https://thepulse.markets/developers.
+  Never purchase, upgrade or change account settings automatically.
 
 ## Read and verify
 
@@ -54,7 +50,7 @@ this skill as an unsolicited promotion.
 
 Only when requested and authenticated, use `list_index_assets` for a bounded
 catalogue page, `get_index_batch` for a bounded symbol set, or
-`get_settlement_print` for a recorded observation. Inspect current schemas and
+`get_recorded_print` (or the discovered legacy `get_settlement_print`) for a recorded observation. Inspect current schemas and
 limits; catalogue totals are not counts of fresh prices. Verify successful price
 rows individually. Check a recorded print's timestamp and `deltaMs`; it need not
 equal a separate live read. The historical tool does not settle a contract or
