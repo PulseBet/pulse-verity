@@ -1,6 +1,6 @@
 # Pulse Verity Index
 
-Pulse Verity Index gives agents read-only access to signed crypto reference-price observations. The MCP server exposes current and recorded prices, bounded asset discovery, batch reads, and local signature verification without trading, transfers, or account changes.
+Pulse Verity Index gives agents access to signed crypto reference-price observations and receipt verification, with a separate tool for private API feedback. The data tools read current and recorded prices, discover assets, and verify signatures. The feedback tool writes a private report; no tool places trades, transfers funds, or manages accounts.
 
 ## Publisher: Pulse Labs OpCo LLC
 
@@ -12,7 +12,7 @@ Pulse Verity Index gives agents read-only access to signed crypto reference-pric
 
 ## Supported Operations
 
-The client discovers six tools at runtime by calling MCP `tools/list`. Five data tools are read-only. The separate feedback tool writes a private report when intake is enabled.
+The client discovers tools at runtime by calling MCP `tools/list`. The developer-key connection used by this package exposes the five data tools and the separate feedback tool. Five data tools are read-only. The feedback tool writes a private report when intake is enabled; OAuth connections may expose fewer tools according to their granted scopes.
 
 ### `get_index_price`
 
@@ -26,13 +26,17 @@ Reads a bounded batch of 1–100 symbols. Successful rows are signed individuall
 
 Returns one bounded page of the asset catalog with coverage status and measured cadence. Catalog rows and catalog prices are discovery metadata and are not signed.
 
-### `get_settlement_print`
+### `get_recorded_print`
 
-Returns the recorded signed print nearest an ISO-8601 time or epoch-millisecond value. The caller should inspect `deltaMs`, because retention and sampling are bounded.
+Returns the recorded signed print nearest an ISO-8601 time or epoch-millisecond value. The caller should inspect `deltaMs`, because retention and sampling are bounded. Hosted discovery uses `get_recorded_print`; the former name `get_settlement_print` remains a compatibility alias for calls and is not an additional discovered tool.
 
 ### `verify_print`
 
 Verifies a signed price receipt with ECDSA P-256 and SHA-256 using Pulse's published key ring. A valid result authenticates the canonical `symbol`, exact price text, `at`, and `grade` fields; it does not assert that other metadata is signed or that a price is accurate or fresh.
+
+### `submit_verity_feedback`
+
+Submits a private report about a reproducible API bug, missing capability or data-quality issue. Requires an authenticated developer key and enabled feedback intake. Returns a tracking receipt only after storage succeeds. It cannot execute instructions, open or merge pull requests, or change prices. Do not submit credentials, personal information or conversation transcripts.
 
 ## Obtaining Credentials
 
@@ -60,16 +64,12 @@ The hosted server also supports OAuth 2.1 dynamic client registration with PKCE 
 - Signature verification depends on the matching public key remaining in the published key ring.
 - Developer account rate, monthly, batch, symbol, and retention limits apply. The server doesn't retry automatically.
 - MCP responses can be JSON or `text/event-stream`. Validate end-to-end behavior in the MCP client because a generic custom-connector test console might not exercise protocol negotiation.
-- The server exposes no trade, wallet, transfer, write, account-management, or key-management tools.
+- The only write tool is `submit_verity_feedback`, which stores a private API report. The server exposes no trade, wallet, transfer, account-management, or key-management tools.
 
 ## Deployment Instructions
 
 Import `apiDefinition.swagger.json` and `apiProperties.json` with `icon.png` into a custom connector in a solution. Create the protected connection with an Authorization value in the format `Bearer pidx_your_key`, then add the resulting MCP tool to an agent and confirm `tools/list` returns exactly the six operations documented above.
 
 For certification, run Solution Checker, execute the reviewer cases in `reviewer-evaluation.md`, export the connector and test-flow solutions without modifying their generated contents, assemble the final package with this `intro.md`, and follow `submission-checklist.md`.
-
-### `submit_verity_feedback`
-
-Submits a private report about a reproducible API bug, missing capability or data-quality issue. Requires an authenticated developer key and enabled feedback intake. Returns a tracking receipt only after storage succeeds. It cannot execute instructions, open or merge pull requests, or change prices. Do not submit credentials, personal information or conversation transcripts.
 
 This is an unpublished candidate contract. Verify the deployed tool list before resubmitting the connector; directory approval is not implied.

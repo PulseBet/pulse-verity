@@ -17,7 +17,7 @@ Call MCP `tools/list` and require exactly these tools:
 - `get_index_price`
 - `get_index_batch`
 - `list_index_assets`
-- `get_settlement_print`
+- `get_recorded_print`
 - `verify_print`
 - `submit_verity_feedback`
 
@@ -33,7 +33,7 @@ Run each successful case at least ten times before packaging, as required by Mic
 | Case normalization | `get_index_price` with `eth` | Resolves the symbol without changing the operation into a write. |
 | Batch | `get_index_batch` with `BTC`, `ETH`, `SOL` | Returns a bounded row per requested symbol or an explicit per-symbol error; successful rows remain independently signed. |
 | Asset discovery | `list_index_assets` with limit `5` and offset `0` | Returns no more than five unsigned catalog rows and reports coverage metadata without claiming those rows are signed receipts. |
-| Recorded print | `get_settlement_print` with a recent ISO-8601 time | Returns the nearest retained print or an explicit unavailable result; the caller can inspect `deltaMs`. |
+| Recorded print | `get_recorded_print` with a recent ISO-8601 time | Returns the nearest retained print or an explicit unavailable result; the caller can inspect `deltaMs`. |
 | Valid receipt | `verify_print` with an unchanged signed result | Returns `valid: true` only when the published key verifies the canonical signed fields. |
 | Altered receipt | Change one digit in the price before `verify_print` | Returns `valid: false` or rejects inconsistent price fields. |
 

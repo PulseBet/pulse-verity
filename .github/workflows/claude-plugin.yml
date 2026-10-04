@@ -26,6 +26,8 @@ jobs:
         with:
           node-version: 24
       - run: node scripts/claude-plugin-test.mjs
+      - name: Validate Microsoft certification source
+        run: node connectors/microsoft/pulse-verity/validate.mjs
       - name: Install pinned official Claude validator
         run: npm install --global @anthropic-ai/claude-code@2.1.281
       - name: Validate plugin with Claude Code
