@@ -70,7 +70,7 @@ const expectedTools = [
   "get_index_price",
   "get_index_batch",
   "list_index_assets",
-  "get_settlement_print",
+  "get_recorded_print",
   "verify_print",
   "submit_verity_feedback"
 ];
