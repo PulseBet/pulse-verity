@@ -1,10 +1,11 @@
-/** Agent contract regressions. Synthetic fixtures; no network or private keys. */
+/** Agent contract regressions. Synthetic fixtures; no network or stored private keys. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createApiClient, createIndexServer, ApiFailure, API_BASE } from "./index.js";
-import type { ApiClient } from "./index.js";
+import type { ApiClient, VerifiablePrint } from "./index.js";
 import { feedbackInputSchema } from "./feedbackContract.js";
 
 let passed = 0;
@@ -62,6 +63,112 @@ await withClient(api, async client => {
   const failed = await client.callTool({name:"get_index_price",arguments:{symbol:"BTC"}});
   check((body(failed).error as any).code === "REQUEST_FAILED" && !JSON.stringify(failed).includes("synthetic-secret"), "transport errors do not expose raw upstream text");
   nextFailure = undefined;
+});
+
+// Pin the independently specified archive format, rather than deriving test
+// vectors from the verifier's field lists. The signing key exists only in memory.
+const archiveFields = ["symbol", "price", "priceText", "at", "grade", "engine", "sources", "tier",
+  "confidence", "dispersionBps", "interval.lower", "interval.upper", "cadence.band"];
+const archiveKey = crypto.generateKeyPairSync("ec", {namedCurve: "prime256v1"});
+const archivePem = archiveKey.publicKey.export({type: "spki", format: "pem"}).toString();
+const signArchive = (canonical: string) => crypto.sign("sha256", Buffer.from(canonical),
+  {key: archiveKey.privateKey, dsaEncoding: "ieee-p1363"}).toString("base64");
+function archivePrint(dailyClose = false, emptyQuality = false): VerifiablePrint & {deltaMs: number; qualityRecorded: boolean} {
+  const print: Omit<VerifiablePrint, "signature"> = {
+    symbol: "BTC", price: 1.23, priceText: "1.230000", at: "2026-10-03T12:00:00.000Z", grade: "consensus",
+    kid: "archive-test", sig: "pulse-index-v1", engine: "verity", sources: 3, tier: "consensus",
+    confidence: 0.9, dispersionBps: 2,
+    interval: emptyQuality ? null : {lower: 1.22, upper: 1.24}, cadence: emptyQuality ? null : {band: "five-second"},
+    ...(dailyClose ? {kind: "daily-close" as const, assetId: "crypto:BTC", closeDay: "2026-10-03"} : {})
+  };
+  const fields = dailyClose ? [...archiveFields, "assetId", "closeDay"] : archiveFields;
+  const canonical = ["pulse-index-v2", ...fields.map(path => {
+    let value: unknown = print;
+    for (const name of path.split(".")) value = value && typeof value === "object" ? (value as Record<string, unknown>)[name] : undefined;
+    return path + "=" + JSON.stringify(value ?? null);
+  })].join("\n");
+  return {...print, signature: signArchive(["pulse-index-v1", print.symbol, print.priceText, print.at, print.grade].join("\n")),
+    v2: {sig: "pulse-index-v2", canonical, signature: signArchive(canonical), kid: "archive-test"}, deltaMs: 4, qualityRecorded: true};
+}
+function withCanonical(print: VerifiablePrint, canonical: string): VerifiablePrint {
+  return {...print, v2: {...print.v2!, canonical, signature: signArchive(canonical)}};
+}
+let recordedResponse: Record<string, unknown> = archivePrint();
+const recordedApi: ApiClient = async path => path === "/api/index/v1/pubkey"
+  ? {activeKid: fixture.print.kid, publicKeyPem: fixture.publicKeyPem, verificationKeys: [
+    {kid: fixture.print.kid, pem: fixture.publicKeyPem}, {kid: "archive-test", pem: archivePem}]}
+  : recordedResponse;
+await withClient(recordedApi, async client => {
+  for (const dailyClose of [false, true]) {
+    for (const emptyQuality of [false, true]) {
+      recordedResponse = archivePrint(dailyClose, emptyQuality);
+      const read = await client.callTool({name: "get_settlement_print", arguments: {symbol: "BTC", at: "2026-10-03T12:00:00.000Z"}});
+      check(!read.isError && body(read).qualityRecorded === true && body(read).deltaMs === 4,
+        "recorded reads accept band-only or null cadence and retain unsigned archive flags");
+      check(!dailyClose || body(read).kind === "daily-close" && body(read).assetId === "crypto:BTC" && body(read).closeDay === "2026-10-03",
+        "recorded reads preserve daily-close identity and day for verification");
+      const verified = body(await client.callTool({name: "verify_print", arguments: body(read)}));
+      check(verified.valid === true && verified.recordValid === true && verified.metadataSigned === true && verified.verificationScope === "full-record",
+        "both archive signatures verify through the actual MCP transport");
+      const details = verified.v2 as any;
+      check(Object.keys(details.signedFields).length === (dailyClose ? 15 : 13) && !("kind" in details.signedFields)
+        && !("cadence.calculatedAgeMs" in details.signedFields), "verification reports only the exact authenticated archive fields");
+    }
+  }
+  const archive = archivePrint(), dailyClose = archivePrint(true);
+  for (const name of ["calculatedAgeMs", "newestSourceAgeMs", "oldestSourceAgeMs", "p50UpdateMs", "p95UpdateMs"]) {
+    for (const value of [0, 25]) {
+      const verified = body(await client.callTool({name: "verify_print", arguments: {...archive, cadence: {...archive.cadence, [name]: value}}}));
+      check(verified.valid === true && verified.recordValid === false && verified.metadataSigned === false
+        && (verified.v2 as any).signatureValid === true, "adding an unsigned non-null archive age fails, including zero: " + name);
+    }
+  }
+  const nullAges = Object.fromEntries(["calculatedAgeMs", "newestSourceAgeMs", "oldestSourceAgeMs", "p50UpdateMs", "p95UpdateMs"].map(name => [name, null]));
+  check(body(await client.callTool({name: "verify_print", arguments: {...archive, cadence: {...archive.cadence, ...nullAges}}})).recordValid === true,
+    "null archive ages make no freshness claim and remain acceptable");
+  for (const [path, change] of [
+    ["sources", {sources: 4}], ["confidence", {confidence: 0.1}], ["engine", {engine: "other"}],
+    ["tier", {tier: "other"}], ["dispersionBps", {dispersionBps: 20}],
+    ["interval.lower", {interval: {lower: 1.21, upper: 1.24}}], ["cadence.band", {cadence: {band: "slow"}}]
+  ] as const) {
+    const verified = body(await client.callTool({name: "verify_print", arguments: {...archive, ...change}}));
+    check(verified.valid === true && verified.recordValid === false && (verified.v2 as any).signatureValid === true
+      && (verified.v2 as any).mismatches.includes(path), "archive quality mutation fails at the signed path: " + path);
+  }
+  for (const [path, change] of [["assetId", {assetId: "crypto:ETH"}], ["closeDay", {closeDay: "2026-10-02"}]] as const) {
+    const verified = body(await client.callTool({name: "verify_print", arguments: {...dailyClose, ...change}}));
+    check(verified.valid === true && verified.recordValid === false && (verified.v2 as any).mismatches.includes(path),
+      "daily-close identity and day are authenticated: " + path);
+  }
+  const reordered = archive.v2!.canonical.split("\n");
+  [reordered[1], reordered[2]] = [reordered[2], reordered[1]];
+  const duplicated = archive.v2!.canonical.split("\n"); duplicated[2] = duplicated[1];
+  const strippedLive = {...fixture.print, cadence: {band: fixture.print.cadence.band}};
+  const missingKind = {...dailyClose}; delete missingKind.kind;
+  for (const invalid of [
+    withCanonical(archive, archive.v2!.canonical.split("\n").slice(0, -1).join("\n")),
+    withCanonical(archive, reordered.join("\n")), withCanonical(archive, duplicated.join("\n")),
+    missingKind, {...archive, kind: "daily-close"}, {...fixture.print, kind: "daily-close"}, strippedLive
+  ]) {
+    const verified = body(await client.callTool({name: "verify_print", arguments: invalid}));
+    check(verified.valid === true && verified.recordValid === false && (verified.v2 as any).signatureValid === true,
+      "valid cryptography cannot substitute a truncated, reordered or wrong-family record");
+  }
+  check(body(await client.callTool({name: "verify_print", arguments: {...archive, signature: "A".repeat(86) + "=="}})).recordValid === false,
+    "a valid archive v2 cannot compensate for an invalid legacy price signature");
+  const unknownKey = body(await client.callTool({name: "verify_print", arguments: {...archive, v2: {...archive.v2!, kid: "unknown-test"}}}));
+  check(unknownKey.valid === true && unknownKey.recordValid === false, "archive verification never falls back for an unknown v2 key ID");
+  recordedResponse = archive;
+  const live = await client.callTool({name: "get_index_price", arguments: {symbol: "BTC"}});
+  check(live.isError === true && (body(live).error as any).code === "INVALID_RESPONSE", "archive relaxation does not weaken live cadence requirements");
+  recordedResponse = {success: true, requested: 1, returned: 1, observations: [{...archive, success: true}]};
+  const batch = await client.callTool({name: "get_index_batch", arguments: {symbols: ["BTC"]}});
+  check(batch.isError === true && (body(batch).error as any).code === "INVALID_RESPONSE", "archive relaxation does not weaken batch cadence requirements");
+  for (const response of [{...archive, price: 0}, {...archive, signature: "wrong"}, {...archive, deltaMs: -1}, {...dailyClose, closeDay: "wrong"}]) {
+    recordedResponse = response;
+    const result = await client.callTool({name: "get_settlement_print", arguments: {symbol: "BTC", at: "2026-10-03T12:00:00.000Z"}});
+    check(result.isError === true && (body(result).error as any).code === "INVALID_RESPONSE", "malformed recorded responses remain unusable");
+  }
 });
 
 let writes = 0;

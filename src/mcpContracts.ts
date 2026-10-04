@@ -67,7 +67,14 @@ export const successSchemas = {
   get_index_price: signedPrintSchema,
   get_index_batch: batchSchema,
   list_index_assets: catalogSchema,
-  get_settlement_print: signedPrintSchema.extend({deltaMs: finite.nonnegative()}),
+  get_settlement_print: signedPrintSchema.extend({
+    // Recorded rows retain the cadence band, not live delivery-age measurements.
+    cadence: cadenceSchema.partial().required({band: true}).nullable().optional(),
+    qualityRecorded: z.boolean().optional(),
+    kind: z.literal('daily-close').optional(), assetId: text(160).nullable().optional(),
+    closeDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    deltaMs: finite.nonnegative()
+  }),
   verify_print: verificationSchema
 };
 export type ReadToolName = keyof typeof successSchemas;

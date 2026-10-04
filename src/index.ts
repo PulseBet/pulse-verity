@@ -13,11 +13,11 @@ import type { ReadToolName } from "./mcpContracts.js";
 import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, containsFeedbackTranscript, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
 import type { FeedbackInput } from "./feedbackContract.js";
 
-export const SERVER_VERSION = "1.3.0";
+export const SERVER_VERSION = "1.3.1";
 export const API_BASE = "https://mcp.thepulse.markets";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const INDEX_SIG_VERSION_V2 = "pulse-index-v2";
-/** Fixed index-print contract. Other signed record families use different fields. */
+/** Complete live index-print contract. Recorded prints have no live age fields. */
 export const INDEX_PRINT_V2_FIELDS = [
   "symbol", "price", "priceText", "at", "grade",
   "engine", "sources", "tier", "confidence", "dispersionBps",
@@ -25,6 +25,12 @@ export const INDEX_PRINT_V2_FIELDS = [
   "cadence.band", "cadence.calculatedAgeMs", "cadence.newestSourceAgeMs", "cadence.oldestSourceAgeMs",
   "cadence.p50UpdateMs", "cadence.p95UpdateMs"
 ] as const;
+export const ARCHIVE_PRINT_V2_FIELDS = [
+  "symbol", "price", "priceText", "at", "grade",
+  "engine", "sources", "tier", "confidence", "dispersionBps",
+  "interval.lower", "interval.upper", "cadence.band"
+] as const;
+export const DAILY_CLOSE_V2_FIELDS = [...ARCHIVE_PRINT_V2_FIELDS, "assetId", "closeDay"] as const;
 export const MAX_RESPONSE_BYTES = 1_048_576;
 export const REQUEST_TIMEOUT_MS = 15_000;
 export const KEY_CACHE_TTL_MS = 300_000;
@@ -73,6 +79,9 @@ const PrintFields = {
   signature: z.string().length(88).regex(/^[A-Za-z0-9+/]{86}==$/).describe("ECDSA P-256 signature in base64"),
   kid: KidSchema.optional().describe("Signing key identifier, when provided by the API"),
   sig: z.literal(INDEX_SIG_VERSION).optional(),
+  kind: z.literal("daily-close").optional().describe("Selects the daily-close record format; this selector is not itself signed"),
+  assetId: SafeText(160).nullable().optional(),
+  closeDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   engine: SafeText(64).nullable().optional(),
   sources: z.number().int().nonnegative().nullable().optional(),
   tier: SafeText(20).nullable().optional(),
@@ -148,9 +157,9 @@ function readRecordPath(record: unknown, path: string): unknown {
   return value;
 }
 
-/** Verify exact bytes, then compare every required signed field to the print.
- * The fixed field order rejects partial or other-family records even if signed.
- * Index fields are scalar JSON values; request-envelope fields are not covered. */
+/** Verify exact bytes and every field in one complete index record format.
+ * Exact field orders reject partial/other-family records even if signed.
+ * Archived signatures cover the cadence band, never live freshness ages. */
 export function verifyRecordV2(input: unknown, publicKeyPem: string): PrintV2Verification {
   const fail = (signatureValid = false): PrintV2Verification => ({
     valid: false, signatureValid, fieldsMatch: false, mismatches: [], signedFields: null
@@ -164,10 +173,14 @@ export function verifyRecordV2(input: unknown, publicKeyPem: string): PrintV2Ver
     const signatureValid = crypto.verify("sha256", Buffer.from(v2.canonical, "utf8"),
       { key: publicP256Key(publicKeyPem), dsaEncoding: "ieee-p1363" }, signature);
     const lines = v2.canonical.split("\n");
-    if (lines[0] !== INDEX_SIG_VERSION_V2 || lines.length !== INDEX_PRINT_V2_FIELDS.length + 1) return fail(signatureValid);
+    const fields = print.kind === "daily-close" ? DAILY_CLOSE_V2_FIELDS
+      : lines.length === INDEX_PRINT_V2_FIELDS.length + 1 ? INDEX_PRINT_V2_FIELDS : ARCHIVE_PRINT_V2_FIELDS;
+    if (lines[0] !== INDEX_SIG_VERSION_V2 || lines.length !== fields.length + 1) return fail(signatureValid);
+    if (fields !== INDEX_PRINT_V2_FIELDS && print.cadence
+      && Object.entries(print.cadence).some(([name, value]) => name !== "band" && value != null)) return fail(signatureValid);
     const signedFields: Record<string, unknown> = {};
     const mismatches: string[] = [];
-    for (const [index, path] of INDEX_PRINT_V2_FIELDS.entries()) {
+    for (const [index, path] of fields.entries()) {
       const prefix = path + "=";
       if (!lines[index + 1].startsWith(prefix)) return fail(signatureValid);
       let value: unknown;
@@ -516,7 +529,7 @@ export function createIndexServer(api: ApiClient = createApiClient(process.env.P
   }));
 
   server.registerTool("get_settlement_print", {
-    title: "Get Settlement Print",
+    title: "Get Recorded Print",
     description: "Get the recorded signed index print nearest a requested time from /api/index/v1/print. Accepts ISO-8601 or epoch milliseconds. Check deltaMs: it is the distance between your requested time and the sampled print. Sampling and retention are bounded; a recorded print need not equal a separate live read. Preserve the whole print, including priceText, kid and v2, for verify_print. Require recordValid=true before trusting quality fields. Request-envelope fields such as deltaMs are unsigned.",
     inputSchema: {
       symbol: SymbolSchema,
@@ -529,7 +542,7 @@ export function createIndexServer(api: ApiClient = createApiClient(process.env.P
 
   server.registerTool("verify_print", {
     title: "Verify a Signed Print",
-    description: "Verify a signed print locally with ECDSA P-256/SHA-256. Legacy valid authenticates only the v1 canonical price fields. Pass the whole print including v2 to authenticate the fixed 18-field index record; agents using sources, confidence, interval or cadence must require recordValid=true. verificationScope is full-record only when both signatures and all signed fields match, price-only for a valid v1 print without v2, or invalid otherwise. metadataSigned equals recordValid. Request-envelope fields such as deltaMs and batch metadata remain unsigned. Public keys come from /api/index/v1/pubkey, cached five minutes with refresh at most every 30 seconds. Each supplied kid selects only its exact published key; v1 prints without kid use the bounded ring. No API key is sent to the key endpoint. Invalid verification can mean alteration or a key no longer published.",
+    description: "Verify a signed print locally with ECDSA P-256/SHA-256. Legacy valid authenticates only the v1 canonical price fields. Pass the whole print including v2 to authenticate its complete live, archive or daily-close index record; agents using sources, confidence, interval or cadence must require recordValid=true. Live records sign 18 fields; archive records sign 13 without freshness ages, and daily-close records add signed assetId and closeDay. v2.signedFields lists exactly what is authenticated. kind selects the format and is not signed. Added non-null freshness ages invalidate archived verification. verificationScope is full-record only when both signatures and all required fields match, price-only for a valid v1 print without v2, or invalid otherwise. metadataSigned equals recordValid. deltaMs and surrounding metadata remain unsigned. Public keys come from /api/index/v1/pubkey, cached five minutes with refresh at most every 30 seconds. Each supplied kid selects only its exact published key; v1 prints without kid use the bounded ring. No API key is sent to the key endpoint. Invalid verification can mean alteration or a key no longer published.",
     inputSchema: PrintFields, outputSchema: toolOutputShape("verify_print"),
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
   }, async (print) => {
