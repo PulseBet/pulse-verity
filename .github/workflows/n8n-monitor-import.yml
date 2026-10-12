@@ -35,6 +35,10 @@ jobs:
           N8N_USER_FOLDER: ${{ runner.temp }}/n8n-user
         run: |
           set -euo pipefail
-          timeout 90s "$RUNNER_TEMP/n8n-install/node_modules/.bin/n8n" import:workflow --input=integrations/n8n/pulse-verity-quality-monitor.json
+          mkdir -p "$RUNNER_TEMP/n8n-import"
+          cp integrations/n8n/pulse-verity-quality-monitor.json "$RUNNER_TEMP/n8n-import/monitor.json"
+          # The separate-file importer generates a fresh workflow ID for a
+          # portable template; the single-file importer expects an existing ID.
+          timeout 90s "$RUNNER_TEMP/n8n-install/node_modules/.bin/n8n" import:workflow --separate --input="$RUNNER_TEMP/n8n-import"
           timeout 90s "$RUNNER_TEMP/n8n-install/node_modules/.bin/n8n" export:workflow --all --output="$RUNNER_TEMP/monitor-roundtrip.json"
           node integrations/n8n/validate-import.mjs "$RUNNER_TEMP/monitor-roundtrip.json"
