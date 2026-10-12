@@ -94,4 +94,4 @@ jobs:
       - name: Publish tested artifact without lifecycle scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish release/ai-sdk-tool-pulse-verity-0.1.0.tgz --ignore-scripts --access public --provenance
+        run: npm publish ./release/ai-sdk-tool-pulse-verity-0.1.0.tgz --ignore-scripts --access public --provenance
