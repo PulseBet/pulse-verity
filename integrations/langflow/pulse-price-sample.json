@@ -777,7 +777,7 @@
             },
             "tool_mode": false
           },
-          "showNode": false,
+          "showNode": true,
           "type": "ChatOutput"
         },
         "dragging": false,
@@ -793,7 +793,7 @@
         "data": {
           "id": "note-pulse",
           "node": {
-            "description": "# Pulse Price Sample\nRead one BTC, ETH or SOL observation through the published Pulse Verity MCP package. No LLM is used.\n\n## Quickstart\n1. Import this JSON in Langflow 1.12.5. The runtime needs Node.js/npm and permission to launch the pinned `npx -y pulse-verity@1.3.1` MCP process. Importing does not prove connectivity.\n2. Check the MCP server configuration in MCP Tools. Its empty PULSE_API_KEY intentionally selects the keyless sample. Do not add secrets to an exported flow.\n3. Open the Playground. Send only `BTC`, `ETH` or `SOL`. Each run selects only `get_index_price`; keep Tool Mode off.\n4. Inspect the returned observation, including `at`, `grade`, `priceText` and the complete `v2` record when supplied. Keep exact receipt fields unchanged.\n\n## Verification limits\nThis flow displays a sample observation. It does not call `verify_print` and must not describe the record as verified. A signature being present is not verification. For deterministic verification use the Pulse Python examples, which require `recordValid: true`. This flow is not a settlement or trading decision workflow.\n\nMCP failures remain errors. Do not automatically retry quota failures. No developer key or paid model is required for this sample; your Langflow hosting may have its own costs.\n",
+            "description": "# Pulse Price Sample\nRead one BTC, ETH or SOL observation with Core MCP Tools. No LLM or developer key is used.\n\n## Setup\n1. Use Langflow 1.12.5 with Node.js/npm. Review the pinned `npx -y pulse-verity@1.3.1` server command. Empty `PULSE_API_KEY` selects the keyless sample.\n2. In MCP Tools, click **Save server**, then **Refresh MCP server**. Wait for discovery. Always keep Tool Mode off.\n3. Select `get_index_price`. If Symbol is missing, select another read tool and then select `get_index_price` again; do not run the other tool.\n4. Confirm **Chat Input → Symbol** and **MCP Tools Response → Chat Output Inputs**. Langflow can remove the first edge while discovering the schema: drag Chat Message to Symbol to restore it.\n\n## Run and inspect\nSend only `BTC`, `ETH` or `SOL` in Playground. Then return to the canvas and click **Inspect output** on MCP Tools. Chat history is disabled, so no assistant bubble is expected. Chat Output also exposes a table through Inspect output.\n\nKeep the exact original `priceText`, timestamp, quality fields and complete `v2` record. Table/Markdown displays may round numeric-looking cells; use the original MCP record for verification.\n\n## Limits\nThis sample does not call `verify_print`. A signature being present is not verification. The deterministic Pulse Python examples require `recordValid: true`. Do not use this flow for settlement or trading decisions. Failures remain errors; do not automatically retry quota failures. Langflow hosting can have its own costs. Never export secrets.\n",
             "display_name": "",
             "documentation": "",
             "template": {
@@ -803,11 +803,11 @@
           "type": "note"
         },
         "dragging": false,
-        "height": 565,
+        "height": 780,
         "id": "note-pulse",
         "position": {
           "x": 0,
-          "y": -300
+          "y": -660
         },
         "resizing": false,
         "selected": false,

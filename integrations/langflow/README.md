@@ -17,18 +17,25 @@ does not verify the receipt.** A signature being present is not verification.
 2. The Langflow runtime must have Node.js/npm and permission to start the pinned
    `npx -y pulse-verity@1.3.1` MCP process. This downloads the package if absent.
    Importing the flow does not establish connectivity.
-3. Review the **MCP Tools** node. It embeds the supported `{name, config}` server
-   value and selects **get_index_price**. Its empty `PULSE_API_KEY` deliberately
-   selects the keyless sample, even if the parent process has a developer key.
-   Keep Tool Mode off. A runtime policy can require registering/approving the
+3. Review the **MCP Tools** node's embedded `{name, config}` server value.
+   Its empty `PULSE_API_KEY` deliberately selects the keyless sample. Click
+   **Save server**, then **Refresh MCP server**, and wait for tool discovery.
+   Keep Tool Mode off. A runtime policy can require approving/registering the
    same command under **Settings → MCP Servers** first.
-4. Open the Playground and send only `BTC`, `ETH`, or `SOL`, not a sentence.
-   The input is passed directly as the tool's `symbol` argument. Inspect the
-   output and the MCP node's full result, including the observation time,
-   quality fields, exact `priceText`, and complete `v2` record when present.
-5. Treat transport, quota, authentication, and invalid-symbol failures as
-   errors. This flow adds no automatic retry. Chat history storage is disabled
-   in both input/output nodes.
+4. Select **get_index_price**. If the **Symbol** input is missing, select another
+   read tool and then select **get_index_price** again, without executing the
+   other tool. Langflow can clear dynamic inputs during initial registration.
+5. Confirm both edges: **Chat Input / Chat Message → MCP Tools / Symbol**, and
+   **MCP Tools / Response → Chat Output / Inputs**. If initial tool discovery
+   removed the first edge, drag the Chat Message output handle onto Symbol.
+6. Open Playground and send only `BTC`, `ETH`, or `SOL`. Return to the canvas
+   and use **Inspect output** on MCP Tools to inspect the returned observation.
+   Chat history storage is disabled: no assistant bubble is expected. Chat
+   Output also exposes its table through **Inspect output**.
+7. Retain exact original `priceText`, timestamps, quality fields and complete
+   `v2` record. Table/Markdown rendering can round numeric-looking cells; use
+   the original MCP record for cryptographic verification. Transport, quota,
+   authentication, and invalid-symbol failures remain errors; no retry is added.
 
 No Verity key or paid model is needed for these samples. Langflow hosting may
 have its own costs. This is not a settlement or trading decision workflow.
@@ -96,9 +103,14 @@ does not invoke a model, and does not call the live Pulse service. Structural
 checks alone do not establish runtime import; a successful runtime gate still
 does not establish rendered UI behavior or live connectivity.
 
-No gallery acceptance or screenshot is claimed. Langflow's upstream template
-contribution requires a real screenshot and maintainer review; those are
-separate from distributing this importable file.
+Live UI validation on October 12, 2026 used Langflow-base 1.12.5 in an isolated
+remote environment with Node.js. The flow was loaded through the actual starter
+catalog, its server registered, dynamic Symbol edge restored as described above,
+and two BTC executions completed. MCP Tools returned live observations and the
+Chat Output inspector returned the result table. No developer key, LLM or receipt
+verification was used. This validates the starter workflow, not the browser's
+separate file-upload control or gallery acceptance. Screenshots accompany the
+upstream submission; acceptance remains a maintainer decision.
 
 References: [MCP client setup](https://docs.langflow.org/mcp-client) ·
 [Starter template contribution process](https://docs.langflow.org/contributing-templates).
