@@ -46,5 +46,10 @@ def run(transport: str, symbol: str) -> dict[str, Any]:
     return create_flow().kickoff(inputs={"transport": transport, "symbol": symbol})
 
 
-if __name__ == "__main__":
+def kickoff() -> None:
+    """Console entrypoint used by `crewai flow kickoff` and `uv run kickoff`."""
     cli(run, asynchronous=False)
+
+
+if __name__ == "__main__":
+    kickoff()

@@ -71,6 +71,15 @@ jobs:
               result=1
               continue
             fi
+            if [[ "$framework" == crewai ]]; then
+              if ! timeout 90s "$environment/bin/python" -m pip install --retries 1 --no-deps ./integrations/python; then
+                result=1
+                continue
+              fi
+              if ! timeout 30s "$environment/bin/python" -I integrations/python/runtime_tests/validate_crewai_package.py; then
+                result=1
+              fi
+            fi
             if ! "$environment/bin/python" -m pip check; then
               result=1
             fi

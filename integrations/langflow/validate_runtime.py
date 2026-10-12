@@ -37,6 +37,7 @@ from validate import FLOW, validate
 
 from langflow.services.database.models.flow.model import FlowCreate
 from lfx.graph import Graph
+from lfx.interface.initialize.loading import get_params
 from lfx.schema.message import Message
 from mcp.types import CallToolResult, TextContent
 from pydantic import BaseModel
@@ -52,13 +53,27 @@ async def check():
     # This is the real graph loader, including component constructors and edges.
     graph = Graph.from_payload(imported.data, emit_extension_events=False)
     assert set(graph.vertex_map) == {"ChatInput-pulse", "MCPTools-pulse", "ChatOutput-pulse"}
-    component = graph.vertex_map["MCPTools-pulse"].custom_component
+    vertex = graph.vertex_map["MCPTools-pulse"]
+    component = vertex.custom_component
     assert component is not None
+    # Graph construction stores saved values in _parameters. Langflow applies
+    # them with set_attributes only in loading.build_component, just before
+    # execution. Bind the actual imported parameters at that same boundary;
+    # asserting against constructor defaults would test the wrong phase.
+    params = get_params(vertex.params)
+    params.pop("code", None)
+    assert params["tool"] == "get_index_price"
+    expected_config = FLOW["data"]["nodes"][1]["data"]["node"]["template"]["mcp_server"]["value"]
+    assert params["mcp_server"] == expected_config
+    assert params["symbol"] is graph.vertex_map["ChatInput-pulse"]
+    # Resolve only the upstream edge to a synthetic ChatInput Message; every
+    # other runtime parameter comes from the actual exported graph.
+    params["symbol"] = Message(text="BTC")
+    component.set_attributes(params)
     assert component.tool == "get_index_price"
+    assert component.mcp_server == expected_config
     assert component.get_outputs_map()["response"].method == "build_output"
     assert "component_as_tool" not in component.get_outputs_map()
-    # The actual exported dynamic input accepts the ChatInput's Message object.
-    component.set_attributes({"symbol": Message(text="BTC")})
     observation = {"symbol": "BTC", "priceText": "123.4500", "at": "2026-01-01T00:00:00Z", "grade": "synthetic"}
     call = AsyncMock(return_value=CallToolResult(content=[TextContent(type="text", text=json.dumps(observation))]))
     tool = SimpleNamespace(name="get_index_price", args_schema=PriceInput, coroutine=call)

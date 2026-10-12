@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pulse-verity-crewai-flow"
+version = "0.0.1"
+description = "A deterministic CrewAI Flow that reads and verifies a Pulse Verity Index price"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = "MIT"
+dynamic = ["dependencies"]
+
+[project.scripts]
+kickoff = "crewai_flow:kickoff"
+run_crew = "crewai_flow:kickoff"
+
+[tool.crewai]
+type = "flow"
+
+# This is an application in its own environment, built from the existing
+# example modules. The pricing/verification adapter has one implementation.
+[tool.setuptools]
+packages = []
+py-modules = ["common", "crewai_example", "crewai_flow"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements-crewai.txt"]}

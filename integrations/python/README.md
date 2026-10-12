@@ -17,6 +17,54 @@ can require different MCP SDK major versions; do not combine these requirement
 files in one environment. The example source and standard-library tests are
 compatible with Python 3.10+.
 
+## CrewAI Flow project
+
+This directory is an installable CrewAI Flow project. It can supply a signed
+price summary to a reporting or research workflow after checking the full-record
+verification result. It uses the same adapter as the standalone example below.
+No LLM provider, model key, scheduler or persistence service is required.
+
+For the standard CrewAI commands, first install Python 3.12 or 3.13, Node.js 18+
+and npm, [uv](https://docs.astral.sh/uv/getting-started/installation/), and the
+[CrewAI CLI](https://docs.crewai.com/en/installation). Disable telemetry before
+starting the CLI, then run these commands from the repository root:
+
+```bash
+export OTEL_SDK_DISABLED=true
+export CREWAI_TELEMETRY_ENABLED=false
+export CREWAI_TRACING_ENABLED=false
+cd integrations/python
+crewai install
+crewai flow kickoff
+```
+
+`crewai install` installs this directory's project and pinned CrewAI/MCP
+dependencies into its own environment. `crewai flow kickoff` invokes the
+registered `kickoff` command with BTC and keyless stdio as defaults. For another
+symbol or hosted transport, use the same installed entrypoint with arguments:
+
+```bash
+uv run kickoff --symbol ETH
+uv run kickoff --symbol BTC --transport http
+```
+
+Hosted transport requires `PULSE_API_KEY`; keyless BTC, ETH and SOL samples do
+not. See credential setup and result limitations below. A successful synthetic
+output excerpt looks like this (the complete result also includes price,
+timestamp and signed quality fields):
+
+```json
+{
+  "symbol": "BTC",
+  "recordValid": true,
+  "verificationScope": "full-record",
+  "freshnessAssessed": false
+}
+```
+
+Failure produces no verified summary and a nonzero exit from `kickoff`. The
+project is MIT-licensed under the repository's [license](../../LICENSE).
+
 ## Run a keyless sample
 
 From the repository root, create a virtual environment outside the repository
@@ -163,13 +211,19 @@ LLM, model key, live endpoint or npm child process is used. Each install is
 limited to four minutes, each test process to one minute, and the job to fifteen
 minutes. Run this dependency-heavy check in CI, not on a resource-limited local
 machine. These tests are separate from the standard-library test command above.
+The CrewAI environment also installs this project and checks the installed
+`kickoff` and `run_crew` entrypoints with an isolated Python process and a mocked
+Flow, including failure exit status. That process cannot import source modules
+from the checkout, access the network, or start an MCP child process.
 
 API signatures were checked against official documentation and published public
 wheel source for LangChain 1.4.4, LangGraph 1.2.14, FastMCP 4.1.0, Google ADK
-2.11.0, CrewAI/Tools 1.15.27 and MCPAdapt 0.1.20. The CI configuration is not
-evidence of a passing run: check its result for the commit you use. Mocked SDK
-execution does not verify network transport, the published npm child process,
-or authenticated hosted access. Live authenticated framework execution remains
+2.11.0, CrewAI/Tools 1.15.27 and MCPAdapt 0.1.20. Real framework lifecycle checks
+passed in GitHub Actions at commit `d068d82`, including the CrewAI Flow and its
+failure paths. The subsequent installable-project/entrypoint additions require
+their own passing CI result; check the result for the commit you use. Mocked SDK
+execution does not verify network transport, the published npm child process or
+authenticated hosted access. Live authenticated framework execution remains
 unverified here.
 
 Official references:
