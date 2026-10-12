@@ -10,6 +10,7 @@ import hashlib
 import json
 from pathlib import Path
 import unittest
+import uuid
 
 ROOT = Path(__file__).resolve().parent
 FLOW = json.loads((ROOT / "pulse-price-sample.json").read_text())
@@ -18,7 +19,9 @@ UPSTREAM = json.loads((ROOT / "upstream.json").read_text())
 
 def validate(flow):
     assert flow["name"] == "Pulse Price Sample"
-    assert not flow.get("id"), "An import must create its own flow ID"
+    # The upstream catalog indexes templates by a stable UUID. This is not a user flow ID.
+    assert str(uuid.UUID(flow["id"])) == flow["id"]
+    assert flow["description"].strip()
     assert flow["mcp_enabled"] is False
     nodes = flow["data"]["nodes"]
     assert len(nodes) == 4
@@ -84,6 +87,15 @@ class ExportTests(unittest.TestCase):
         flow = copy.deepcopy(FLOW)
         change(flow)
         with self.assertRaises((AssertionError, KeyError, StopIteration)):
+            validate(flow)
+
+    def test_rejects_missing_catalog_id(self):
+        self.assert_mutation_rejected(lambda f: f.pop("id"))
+
+    def test_rejects_empty_catalog_id(self):
+        flow = copy.deepcopy(FLOW)
+        flow["id"] = ""
+        with self.assertRaises(ValueError):
             validate(flow)
 
     def test_rejects_write_tool(self):
