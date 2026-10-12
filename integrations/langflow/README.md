@@ -80,8 +80,9 @@ exports do. Chat Input/Output come from the upstream v1.12.5 Simple Agent export
 MCP Tools comes from that release's `MCPToolsComponent`. Exact source URLs and
 SHA-256 values are recorded in [upstream.json](upstream.json), with the upstream
 [MIT license](LICENSE.langflow). No custom price backend or new component is
-introduced. The flow has no persistent flow ID, so importing it does not request
-an overwrite of an existing flow.
+introduced. The export includes a stable catalog UUID required by Langflow
+template discovery. Create a new flow from the starter; do not use an update or
+overwrite operation against an existing user flow.
 
 Run the lightweight structural checks without dependencies:
 
