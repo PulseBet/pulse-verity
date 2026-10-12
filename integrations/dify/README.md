@@ -7,11 +7,10 @@ crypto index print with `get_index_price`, then sends the entire unchanged
 print to the existing `verify_print` tool. It contains no price calculation,
 signature algorithm, trading, payment, asset-transfer, or feedback tool.
 
-**Source candidate, version 0.0.1.** It has passed offline tests with the real
-Dify Python SDK and local packaging with the official Dify CLI. It has not
-been installed or remote-debugged in a Dify workspace, submitted to a
-marketplace, or approved for a listing. Do not describe it as published or
-installation-verified.
+**Version 0.0.1.** Installed and successfully executed in Dify Cloud, with
+offline tests using the real Dify Python SDK and packaging using the official
+Dify CLI. Community Edition remains untested. Marketplace submission and
+approval remain pending; this is not a published Marketplace listing.
 
 ## Requirements and credentials
 
@@ -121,16 +120,25 @@ provider, tool and icon loading; named output variables; complete-print
 forwarding; JSON, text-content and streamed SSE transport; missing/invalid
 credentials; authorization failures; blocked redirects; no retries; quotas;
 malformed/oversized/compressed responses; timeouts; credential redaction; and rejection
-of incomplete or price-only verification. No live market-data or LLM request
-was used. The mocks do not prove deployed server compatibility.
+of incomplete or price-only verification. These offline tests used no live
+market-data or LLM requests. The mocks do not prove deployed server compatibility.
 
 Local packaging used the official
 [Dify CLI 0.6.11 release](https://github.com/langgenius/dify-plugin-daemon/releases/tag/0.6.11),
 Darwin ARM64 asset. Its SHA-256 was checked against GitHub's release asset
 digest before execution:
 `9f302d7bcad0d9efb6e1b3b620e7f3f309ea26c206c062f5ae569621ae53f654`.
-No Dify workspace/debug connection was supplied, so authenticated end-to-end
-installation and execution remain unverified.
+
+On 11 October 2026 at 23:58:15 Pacific, the installed 0.0.1 plugin completed
+a private Dify Cloud **Run this step** invocation for `BTC` in 1.056 seconds,
+with 0 model tokens. The result had `success: true` and `recordValid: true`.
+Verification returned `valid`, `recordValid`, and `metadataSigned` as true,
+`verificationScope: "full-record"`, and v2 `fieldsMatch`, `signatureValid`,
+and `valid` as true, with `mismatches: []`. A complete manual workflow
+(User Input → tool → Output) then passed on 12 October at 00:01:36 Pacific
+in 1.107 seconds, with three steps, 0 model tokens, and successful full-record
+verification in the workflow output. These are two live BTC calls in Cloud;
+no model or scheduled trigger was used. Community Edition remains untested.
 
 The official `langgenius/dify-marketplace-toolkit` package validator also passed
 all blocking checks on 11 October 2026 with Python 3.12. Its direct pinned
@@ -139,9 +147,8 @@ unspecified minimum Dify version and for financial-transaction keywords in
 sentences explicitly excluding those capabilities. The outbound-domain scan
 identified only the declared `mcp.thepulse.markets` endpoint. This package scan
 does not establish workspace installation, execution or marketplace acceptance.
-These checks and marketplace review must happen before claiming a working
-published listing. No backend or OpenAPI specification changes are needed by
-this adapter.
+Marketplace submission and review remain outstanding. No backend or OpenAPI
+specification changes are needed by this adapter.
 
 This layout follows the official
 [tool example](https://github.com/langgenius/dify-official-plugins/tree/main/tools/tavily)
