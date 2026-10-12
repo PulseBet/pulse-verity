@@ -9,7 +9,7 @@ feedback tool, make payments, or implement another pricing or signature engine.
 |---|---|---|---|
 | LangChain + LangGraph | [langchain_graph.py](langchain_graph.py) | [requirements-langchain.txt](requirements-langchain.txt) | 3.10+ |
 | Google ADK | [google_adk.py](google_adk.py) | [requirements-google-adk.txt](requirements-google-adk.txt) | 3.10+ |
-| CrewAI | [crewai_example.py](crewai_example.py) | [requirements-crewai.txt](requirements-crewai.txt) | 3.12–3.13 |
+| CrewAI tools + Flow | [crewai_example.py](crewai_example.py), [crewai_flow.py](crewai_flow.py) | [requirements-crewai.txt](requirements-crewai.txt) | 3.12–3.13 |
 
 Install only the framework you use, in its own virtual environment. The pinned
 CrewAI MCP adapter dependency currently requires Python 3.12+. The frameworks
@@ -43,6 +43,20 @@ python3.12 -m venv /tmp/verity-crewai-env
 /tmp/verity-crewai-env/bin/python -m pip install -r integrations/python/requirements-crewai.txt
 /tmp/verity-crewai-env/bin/python integrations/python/crewai_example.py --symbol BTC
 ```
+
+The complete CrewAI Flow uses the same environment:
+
+```bash
+/tmp/verity-crewai-env/bin/python integrations/python/crewai_flow.py --symbol BTC
+```
+
+The Flow validates `symbol` and `transport`, calls the existing read-and-verify
+adapter once, and returns the verified summary. Failure propagates without
+populating its result state. `create_flow()` exposes the Flow for applications
+using `kickoff(inputs={"symbol": "BTC", "transport": "stdio"})`. It has no
+model, scheduler, persistence, or background service; tracing and Flow event
+output are disabled. Configure the host's telemetry environment before calling
+`create_flow()` directly, as described below.
 
 On Windows, use the virtual environment's `Scripts/python.exe` path. The default
 `stdio` transport starts `npx -y pulse-verity@1.3.1` and closes the MCP connection
@@ -123,26 +137,40 @@ transport read limits; its synchronous tool-call lifecycle is owned by the
 installed adapter. These examples are short-lived commands, not background
 services. They never start a web development server.
 
-## Offline validation and evidence boundary
+## Validation and evidence boundary
 
 ```bash
 python3.12 -m unittest discover -s integrations/python/tests -v
 python3.12 -m compileall -q integrations/python
 ```
 
-The tests use synthetic receipts and framework doubles. They check both
+The lightweight tests use synthetic receipts and framework doubles. They check both
 transport configurations, the tool allowlists, error rejection, call order,
 unchanged verification arguments, cleanup after failure, quality presentation
 and suppression of arbitrary exception text. They need no third-party packages,
 network, account credentials or model calls. Synthetic verification responses
 test our gate; cryptographic correctness belongs to the MCP package's own suite.
 
+The `framework-runtime` job in
+[Integration examples](../../.github/workflows/integrations.yml) installs each
+pinned framework in its own Python 3.12 environment on GitHub Actions. It checks
+real ADK toolset/context construction, real LangChain tool conversion and
+LangGraph execution, and real CrewAI tools, Flow execution and adapter-thread
+cleanup. Only MCP session/client I/O is mocked. Both transport constructors run;
+success, failed verification, tool errors and missing-tool paths are checked.
+Network access and child-process launches are blocked during these tests. No
+LLM, model key, live endpoint or npm child process is used. Each install is
+limited to four minutes, each test process to one minute, and the job to fifteen
+minutes. Run this dependency-heavy check in CI, not on a resource-limited local
+machine. These tests are separate from the standard-library test command above.
+
 API signatures were checked against official documentation and published public
 wheel source for LangChain 1.4.4, LangGraph 1.2.14, FastMCP 4.1.0, Google ADK
-2.11.0, CrewAI Tools 1.15.27 and MCPAdapt 0.1.20. These dependency pins are
-source-checked compatibility targets, not a claim that every framework has been
-executed against the authenticated hosted endpoint. Fresh-environment dependency
-installation and live authenticated framework execution remain unverified here.
+2.11.0, CrewAI/Tools 1.15.27 and MCPAdapt 0.1.20. The CI configuration is not
+evidence of a passing run: check its result for the commit you use. Mocked SDK
+execution does not verify network transport, the published npm child process,
+or authenticated hosted access. Live authenticated framework execution remains
+unverified here.
 
 Official references:
 
@@ -152,3 +180,4 @@ Official references:
 - [FastMCP transports](https://gofastmcp.com/clients/transports)
 - [Google ADK MCP tools](https://google.github.io/adk-docs/tools-custom/mcp-tools/)
 - [CrewAI MCP adapter and tool filtering](https://docs.crewai.com/en/mcp/overview)
+- [CrewAI Flows](https://docs.crewai.com/en/concepts/flows)

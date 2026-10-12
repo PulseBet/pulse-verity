@@ -131,6 +131,14 @@ digest before execution:
 `9f302d7bcad0d9efb6e1b3b620e7f3f309ea26c206c062f5ae569621ae53f654`.
 No Dify workspace/debug connection was supplied, so authenticated end-to-end
 installation and execution remain unverified.
+
+The official `langgenius/dify-marketplace-toolkit` package validator also passed
+all blocking checks on 11 October 2026 with Python 3.12. Its direct pinned
+dependency check found no known vulnerabilities. Review warnings remain for the
+unspecified minimum Dify version and for financial-transaction keywords in
+sentences explicitly excluding those capabilities. The outbound-domain scan
+identified only the declared `mcp.thepulse.markets` endpoint. This package scan
+does not establish workspace installation, execution or marketplace acceptance.
 These checks and marketplace review must happen before claiming a working
 published listing. No backend or OpenAPI specification changes are needed by
 this adapter.
@@ -139,4 +147,5 @@ This layout follows the official
 [tool example](https://github.com/langgenius/dify-official-plugins/tree/main/tools/tavily)
 and [SDK schema](https://langgenius.github.io/dify-plugin-sdks/schema/).
 Support and source: [PulseBet/pulse-verity](https://github.com/PulseBet/pulse-verity).
+Support email: [support@thepulse.markets](mailto:support@thepulse.markets).
 License: MIT, under the included [LICENSE](LICENSE).

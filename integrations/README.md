@@ -8,10 +8,10 @@ the public MCP service and package; they do not run another price feed.
 | n8n | [Manual price-and-verification workflow](n8n/) |
 | LangChain / LangGraph | [Python examples](python/) |
 | Google ADK | [Python examples](python/) |
-| CrewAI | [Python examples](python/) |
+| CrewAI | [Deterministic read-and-verify Flow and adapter examples](python/) |
 | Dify | [Read-only plugin source](dify/) |
 | Flowise | [Custom MCP connection](flowise/) |
-| Langflow | [MCP Tools connection](langflow/) |
+| Langflow | [Importable Core-component price sample and MCP Tools setup](langflow/) |
 | Gemini CLI, VS Code / GitHub Copilot, Cursor, Windsurf, Codex, Claude | [Existing client setup](../README.md#install-locally-in-other-clients) |
 
 Source availability, successful local validation, and acceptance into a vendor's
