@@ -103,3 +103,11 @@ No credentials or LLM are required. No schedule is installed.
 
 API references: [AI SDK MCP](https://ai-sdk.dev/docs/ai-sdk-core/mcp-tools) and
 [AI SDK tools](https://ai-sdk.dev/docs/reference/ai-sdk-core/tool).
+
+Verified on 12 October 2026 at 10:48 Pacific: [CI run 38286700206](https://github.com/PulseBet/pulse-verity/actions/runs/38286700206)
+at source commit `084dc2c` passed TypeScript checking, all 17 offline tests, and
+one live keyless BTC sequence through the real AI SDK tool and published stdio
+package. The live result reported `recordValid: true` and
+`verificationScope: "full-record"`. No LLM or developer key was used. Live
+authenticated HTTP execution and marketplace acceptance are not established by
+this check.
