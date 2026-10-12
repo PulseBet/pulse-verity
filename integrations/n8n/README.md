@@ -1,3 +1,7 @@
+# n8n integration examples
+
+For a scheduled monitor with decision audits and Slack failure/recovery alerts, see [MONITOR.md](./MONITOR.md) and import [pulse-verity-quality-monitor.json](./pulse-verity-quality-monitor.json). The manual example below remains available as a focused signature tutorial.
+
 # Pulse Verity Index for n8n
 
 Import [pulse-verity-signed-price.json](pulse-verity-signed-price.json) to read one

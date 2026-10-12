@@ -1,0 +1,40 @@
+name: n8n monitor import
+on:
+  pull_request:
+    paths:
+      - 'integrations/n8n/**'
+      - '.github/workflows/n8n-monitor-import.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: n8n-monitor-import-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  import-inactive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      N8N_DIAGNOSTICS_ENABLED: 'false'
+      N8N_VERSION_NOTIFICATIONS_ENABLED: 'false'
+      N8N_TEMPLATES_ENABLED: 'false'
+      N8N_ENCRYPTION_KEY: 'synthetic-disposable-import-test-only'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Check graph and failure contracts without network
+        run: node --test integrations/n8n/validate.mjs integrations/n8n/validate-monitor.mjs
+      - name: Install pinned n8n only on this disposable runner
+        run: timeout 600s npm install --prefix "$RUNNER_TEMP/n8n-install" --no-audit --no-fund n8n@2.42.6
+      - name: Import and export inactive workflow using real n8n CLI
+        env:
+          N8N_USER_FOLDER: ${{ runner.temp }}/n8n-user
+        run: |
+          set -euo pipefail
+          timeout 90s "$RUNNER_TEMP/n8n-install/node_modules/.bin/n8n" import:workflow --input=integrations/n8n/pulse-verity-quality-monitor.json
+          timeout 90s "$RUNNER_TEMP/n8n-install/node_modules/.bin/n8n" export:workflow --all --output="$RUNNER_TEMP/monitor-roundtrip.json"
+          node integrations/n8n/validate-import.mjs "$RUNNER_TEMP/monitor-roundtrip.json"
