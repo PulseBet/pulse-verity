@@ -12,7 +12,7 @@ the public MCP service and package; they do not run another price feed.
 | CrewAI | [Deterministic read-and-verify Flow and adapter examples](python/) |
 | Dify | [Read-only plugin source](dify/) |
 | Continue / Zed | [Manual keyless client setup](clients/) |
-| Flowise | [Custom MCP connection](flowise/) |
+| Flowise (sunset upstream) | [Existing self-hosted deployment reference; unverified](flowise/) |
 | Langflow | [Importable Core-component price sample and MCP Tools setup](langflow/) |
 | Gemini CLI, VS Code / GitHub Copilot, Cursor, Windsurf, Codex, Claude | [Existing client setup](../README.md#install-locally-in-other-clients) |
 

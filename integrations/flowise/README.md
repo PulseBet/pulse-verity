@@ -1,5 +1,12 @@
 # Flowise Custom MCP
 
+**Maintenance notice (12 October 2026):** Flowise's [official sunset notice](https://flowiseai.com/sunset)
+announces a code freeze, repository archival and end of core-team support on
+31 August 2026. Its Cloud sign-in address failed to resolve during our check.
+Do not create a new Cloud account for this example. The configuration below is
+retained as an unverified reference for existing self-hosted deployments or
+community forks; it is not an active marketplace submission route.
+
 This is a connection configuration, not an exported chatflow or a marketplace
 listing. It follows Flowise's documented Streamable HTTP Custom MCP interface.
 
