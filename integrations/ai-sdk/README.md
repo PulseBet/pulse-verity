@@ -1,6 +1,6 @@
 # Pulse Verity Index with Vercel AI SDK
 
-A server-side TypeScript example using `ai@7.0.137` and `@ai-sdk/mcp@2.0.73`.
+A Node.js server-side tool package using `ai@7.0.137` and `@ai-sdk/mcp@2.0.73`.
 It supplies one AI SDK tool, `verified_price`, that reads an index price and
 checks its full signed record **in code**, before returning a summary to an
 agent. The smoke test runs that same tool without a model or model API key.
@@ -8,7 +8,49 @@ agent. The smoke test runs that same tool without a model or model API key.
 This is a community integration example, not a Vercel Marketplace approval or
 an official Vercel provider. No additional price feed is created.
 
-## Try one verified BTC sample
+## Install
+
+Requires Node.js 24+ and AI SDK 7; not an Edge-runtime or browser tool.
+
+```sh
+npm install ai@^7.0.137 ai-sdk-tool-pulse-verity
+```
+
+Save as `price.mjs` and run `node price.mjs` for a keyless sample:
+
+```js
+import { pulseVerity } from 'ai-sdk-tool-pulse-verity';
+const tool = pulseVerity({ mode: 'sample' });
+console.log(await tool.execute(
+  { symbol: 'BTC' }, { toolCallId: 'sample', messages: [], context: {} },
+));
+```
+
+Sample mode supports BTC, ETH and SOL, ignores ambient developer credentials and
+does not promise current live pricing. It starts a temporary pinned MCP child
+process, then closes it.
+
+For a hosted agent, set `PULSE_API_KEY` and `AI_GATEWAY_API_KEY` in your server
+secret store. Model usage and Verity account quotas are separate.
+
+```js
+import { generateText, gateway, isStepCount } from 'ai';
+import { pulseVerity } from 'ai-sdk-tool-pulse-verity';
+const { text } = await generateText({
+  model: gateway('openai/gpt-5-mini'),
+  prompt: 'Read and verify a BTC index record. Report its observation time and quality; do not assume it is fresh.',
+  tools: { verified_price: pulseVerity() },
+  stopWhen: isStepCount(2), maxRetries: 0,
+});
+console.log(text);
+```
+
+Hosted mode requires a developer key and never falls back to sample data. An
+optional `apiKey` argument overrides `PULSE_API_KEY`. Each execution opens and
+closes its connection. The tool does not retry internally; applications and
+models can still call repeatedly, so set your own call and spend limits.
+
+## Run from source
 
 Use Node.js 24 or newer. From this repository:
 
@@ -39,12 +81,11 @@ are rejected by the adapter. Never put the key in a browser bundle, repository,
 prompt, screenshot, chat, or exported workflow. Do not expose a public proxy
 using your key without application authentication, rate limits and a budget.
 
-For an existing AI SDK application, copy `verified-price.ts` into server-only
-code and add the two pinned runtime dependencies from this example's
-`package.json`. Register the tool with your existing agent:
+For advanced server-side transport configuration, the package also exports
+`createVerifiedPriceTool` and `hostedTransport`:
 
 ```ts
-import { createVerifiedPriceTool, hostedTransport } from './verified-price.ts';
+import { createVerifiedPriceTool, hostedTransport } from 'ai-sdk-tool-pulse-verity';
 
 const tools = {
   verified_price: createVerifiedPriceTool(() => hostedTransport(process.env.PULSE_API_KEY)),
@@ -111,3 +152,13 @@ package. The live result reported `recordValid: true` and
 `verificationScope: "full-record"`. No LLM or developer key was used. Live
 authenticated HTTP execution and marketplace acceptance are not established by
 this check.
+
+
+## Package verification
+
+Release CI emits JavaScript and TypeScript declarations, checks an exact seven-file
+allowlist, then installs the tarball in a clean directory and executes one keyless
+verified BTC call. Offline tests exercise real `generateText` orchestration with
+a synthetic model. No paid model call is needed. Publication is manual only.
+
+Integration guide: https://pulsebet.github.io/pulse-verity/ai-sdk/.

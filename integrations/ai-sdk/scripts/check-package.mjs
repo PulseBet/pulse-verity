@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+const [pack] = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8' }));
+const expected = ['LICENSE', 'README.md', 'package.json', 'dist/index.js', 'dist/index.d.ts', 'dist/verified-price.js', 'dist/verified-price.d.ts'];
+assert.deepEqual(pack.files.map(f => f.path).sort(), expected.sort());
+assert.ok(pack.unpackedSize < 100000, 'package must stay small');
+const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+assert.equal(manifest.name, 'ai-sdk-tool-pulse-verity');
+assert.equal(manifest.dependencies['pulse-verity'], '1.3.1');
+const { pulseVerity } = await import('../dist/index.js');
+assert.throws(() => pulseVerity({ apiKey: '' }), /PULSE_API_KEY/);
+assert.equal(typeof pulseVerity({ mode: 'sample' }).execute, 'function');
+console.log('Package exports, declarations and exact seven-file allowlist passed.');

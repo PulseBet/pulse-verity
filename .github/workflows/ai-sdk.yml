@@ -12,6 +12,10 @@ on:
         description: 'Run one keyless BTC read and verification (no LLM)'
         type: boolean
         default: false
+      publish_package:
+        description: 'Publish the verified AI SDK package to npm (manual only)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -37,6 +41,57 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build
+      - run: npm run check:package
+      - name: Create release tarball
+        run: npm pack --ignore-scripts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ai-sdk-package
+          path: integrations/ai-sdk/ai-sdk-tool-pulse-verity-*.tgz
+          if-no-files-found: error
+          retention-days: 7
       - name: Optional live keyless price and record verification
-        if: github.event_name == 'workflow_dispatch' && inputs.live_sample
-        run: timeout 100s npm start -- --symbol BTC
+        if: github.event_name == 'workflow_dispatch' && (inputs.live_sample || inputs.publish_package)
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$PWD/ai-sdk-tool-pulse-verity-0.1.0.tgz"
+          check_dir="$(mktemp -d)"
+          cd "$check_dir"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund "$archive" ai@7.0.137
+          timeout 100s node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { pulseVerity } from 'ai-sdk-tool-pulse-verity';
+          const result = await pulseVerity({ mode: 'sample' }).execute(
+            { symbol: 'BTC' }, { toolCallId: 'package-smoke', messages: [], context: {} },
+          );
+          assert.equal(result.recordValid, true);
+          assert.equal(result.verificationScope, 'full-record');
+          assert.equal(result.unsignedContext.sample, true);
+          console.log(JSON.stringify(result));
+          JS
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_package && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ai-sdk-package
+          path: release
+      - name: Publish tested artifact without lifecycle scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish release/ai-sdk-tool-pulse-verity-0.1.0.tgz --ignore-scripts --access public --provenance

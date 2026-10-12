@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { generateText, isStepCount } from 'ai';
+import { MockLanguageModelV4 } from 'ai/test';
 import type { JSONRPCMessage, MCPTransport } from '@ai-sdk/mcp';
 import { createVerifiedPriceTool, decodeResult, ExampleError, hostedTransport, MCP_URL, readVerifiedPrice } from '../verified-price.ts';
 
@@ -139,4 +141,32 @@ test('real HTTP transport authenticates only at the fixed endpoint and surfaces 
   });
   // Legacy transport opens an inbound SSE GET separately from initialize POST.
   assert.deepEqual(requests.sort(), ['GET', 'POST']);
+});
+
+
+test('generateText verifies before its second model step', async () => {
+  const peer = new Peer();
+  let step = 0;
+  const model = new MockLanguageModelV4({
+    doGenerate: async () => ({
+      content: step++ === 0
+        ? [{ type: 'tool-call' as const, toolCallId: 'price-1', toolName: 'verified_price', input: JSON.stringify({ symbol: 'BTC' }) }]
+        : [{ type: 'text' as const, text: 'Verified record; freshness not assessed.' }],
+      finishReason: { unified: step === 1 ? 'tool-calls' as const : 'stop' as const, raw: undefined },
+      usage: {
+        inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+        outputTokens: { total: 0, text: 0, reasoning: undefined },
+      }, warnings: [],
+    }),
+  });
+  const result = await generateText({
+    model, prompt: 'Read and verify a BTC record; report its time and quality.',
+    tools: { verified_price: createVerifiedPriceTool(() => peer) },
+    stopWhen: isStepCount(2), maxRetries: 0,
+  });
+  assert.equal(result.text, 'Verified record; freshness not assessed.');
+  assert.equal(result.steps.length, 2);
+  assert.equal(result.steps[0].toolResults[0].output.recordValid, true);
+  assert.deepEqual(peer.calls.map(c => c.name), ['get_index_price', 'verify_print']);
+  assert.equal(peer.closed, true);
 });
