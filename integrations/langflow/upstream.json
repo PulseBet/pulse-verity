@@ -1,0 +1,18 @@
+{
+  "langflow_version": "1.12.5",
+  "sources": {
+    "simple_agent": {
+      "url": "https://github.com/langflow-ai/langflow/blob/v1.12.5/src/backend/base/langflow/initial_setup/starter_projects/Simple%20Agent.json",
+      "sha256": "f4b27bb2b00a6a6eb1af6b3d8ffe4a96525e82d5be371a1144249374feae57c6"
+    },
+    "mcp_component": {
+      "url": "https://github.com/langflow-ai/langflow/blob/v1.12.5/src/lfx/src/lfx/components/models_and_agents/mcp_component.py",
+      "sha256": "9c81bfe8e4e59e210f291673bad6c42465fa5c29486f9cfa70c12a28e4f8fa64"
+    }
+  },
+  "embedded_core_sha256": {
+    "ChatInput": "45974e6b1909ddbbfec5381cf528523131c7579f3724a1a6cc05ab62cfc63827",
+    "MCPTools": "9c81bfe8e4e59e210f291673bad6c42465fa5c29486f9cfa70c12a28e4f8fa64",
+    "ChatOutput": "0aab1c78e1dc24ff5a066dc8db75a695aa46cb3ba8fbb13c34f70672c5f2b967"
+  }
+}

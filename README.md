@@ -3,6 +3,14 @@
 `pulse-verity` connects an AI agent to the **Pulse Verity Index**: signed,
 verifiable crypto index prices through the Model Context Protocol (MCP).
 
+For workflow and framework setup, see the [integration examples](integrations/):
+n8n, LangChain/LangGraph, Google ADK, CrewAI, Dify, Flowise and Langflow.
+
+For the CrewAI Flow template, open [the Python project](integrations/python/#crewai-flow-project)
+and run the documented `crewai install` and `crewai flow kickoff` commands from
+that directory. The Flow reads one index price and verifies its signed record
+without an LLM.
+
 It exposes five read-only data tools and one private feedback tool:
 
 | Tool | Purpose |

@@ -1,0 +1,3 @@
+# Install in a separate virtual environment. Python 3.12 or 3.13.
+crewai-tools[mcp]==1.15.27
+mcpadapt==0.1.20

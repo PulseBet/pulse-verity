@@ -1,0 +1,26 @@
+identity:
+  author: pulsebet
+  name: pulse_verity
+  label:
+    en_US: Pulse Verity Index
+  description:
+    en_US: Read-only crypto index data with full-record verification through the hosted MCP.
+  icon: icon.png
+  tags:
+    - finance
+credentials_for_provider:
+  pulse_api_key:
+    type: secret-input
+    required: true
+    label:
+      en_US: Pulse developer API key
+    placeholder:
+      en_US: Enter your developer key in this private field
+    help:
+      en_US: Create a developer key in the Pulse developer portal. Hosted MCP calls use your account allowance.
+    url: https://thepulse.markets/developers
+tools:
+  - tools/get_verified_price.yaml
+extra:
+  python:
+    source: provider/pulse_verity.py
