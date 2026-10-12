@@ -166,7 +166,9 @@ test('generateText verifies before its second model step', async () => {
   });
   assert.equal(result.text, 'Verified record; freshness not assessed.');
   assert.equal(result.steps.length, 2);
-  assert.equal(result.steps[0].toolResults[0].output.recordValid, true);
+  const output = result.steps[0].toolResults[0].output;
+  assert.ok(output && typeof output === 'object' && 'recordValid' in output);
+  assert.equal(output.recordValid, true);
   assert.deepEqual(peer.calls.map(c => c.name), ['get_index_price', 'verify_print']);
   assert.equal(peer.closed, true);
 });
