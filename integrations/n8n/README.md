@@ -8,8 +8,9 @@ Your n8n hosting and Verity account limits still apply.
 
 ## Setup
 
-1. Use an n8n instance with **MCP Client node version 1.1**, **Code version 2**,
-   and **Manual Trigger version 1**. The source compatibility target is
+1. Use an n8n instance with **MCP Client node version 1.1**, **Edit Fields (Set)
+   version 3.4**, **Code version 2**, and **Manual Trigger version 1**. The source
+   compatibility target is
    **n8n 2.42.6**. This is a source/schema check, not a completed n8n UI import
    or authenticated execution. Older releases have not been validated.
 2. In the editor's workflow menu, choose **Import from File**, then select the
@@ -23,8 +24,10 @@ Your n8n hosting and Verity account limits still apply.
    without adding the word `Bearer`. Select this same credential in
    **Verify exact print**. The export intentionally contains no credential ID,
    credential name, token, environment lookup, or file lookup.
-5. In **Choose symbol**, change `BTC` only if needed. Keep the endpoint and tools
-   fixed. The tool inputs use JSON mode; `verify_print` receives the preserved
+5. In **Choose symbol**, an **Edit Fields (Set)** node, change the `symbol`
+   field's default `BTC` only if needed. Use 1–20 uppercase letters or digits.
+   **Validate symbol** rejects malformed values before any MCP call. Keep the
+   endpoint and tools fixed. The tool inputs use JSON mode; `verify_print` receives the preserved
    print fields at the top level, not nested under a `print` property.
 6. Execute the **entire workflow** manually. Inspect **Require verified record**.
    A successful output has `status: "VERIFIED"`, the original `signedPrint`,
@@ -35,6 +38,11 @@ The configured origin is `https://mcp.thepulse.markets`; both nodes use
 `verify_print` once, plus the protocol connection handshakes. Each tool has a
 20-second timeout. Automatic workflow retries are disabled. No data is sent to
 an LLM, notification destination, trading service, or feedback tool.
+
+The workflow's main sticky note contains the complete [template description](TEMPLATE.md),
+including setup, requirements and customization. To extend the workflow, connect
+downstream processing after **Require verified record** and apply the freshness
+and quality checks your application needs.
 
 ## What VERIFIED means
 
@@ -83,12 +91,15 @@ outside this template's verification guarantees. Re-run from the manual trigger.
 node --test integrations/n8n/validate.mjs
 ```
 
-The offline harness walks the exported connections, executes the exact embedded
-JavaScript and JSON-input expressions, and replaces only the remote MCP
-transport. It verifies the repository's synthetic signed fixture with Node's
+The offline harness walks the exported connections, maps the configured string
+field locally, executes the exact embedded JavaScript and JSON-input expressions,
+and supplies synthetic responses in place of the remote MCP transport. It
+verifies the repository's synthetic signed fixture with Node's
 crypto library, then tests altered prices/quality, invalid signatures, missing
 verification fields, malformed responses and stopped calls without retries.
 No live credentials, market-data request or paid model call is involved.
+The Edit Fields parameter shape was checked against the official source and an
+exported n8n test workflow; the harness does not run the n8n editor or node runtime.
 
 This is a local integration artifact and a [template listing draft](TEMPLATE.md).
 It has not been imported into a hosted n8n account, submitted to n8n, accepted
@@ -100,4 +111,7 @@ into its template directory, or approved as an official n8n integration.
 - [n8n 2.42.6 MCP Client source](https://github.com/n8n-io/n8n/blob/n8n%402.42.6/packages/%40n8n/nodes-langchain/nodes/mcp/McpClient/McpClient.node.ts): node version, property names, structured/text output and v1.1 error handling.
 - [n8n 2.42.6 transport and credentials](https://github.com/n8n-io/n8n/blob/n8n%402.42.6/packages/%40n8n/nodes-langchain/nodes/mcp/shared/descriptions.ts): HTTP Streamable and Bearer Auth fields.
 - [n8n Bearer Auth documentation](https://docs.n8n.io/integrations/builtin/credentials/httprequest/#using-bearer-auth) and [JSON import](https://docs.n8n.io/workflows/export-import/).
+- [n8n 2.42.6 Edit Fields source](https://github.com/n8n-io/n8n/blob/n8n%402.42.6/packages/nodes-base/nodes/Set/v2/SetV2.node.ts) and [manual assignment mapping](https://github.com/n8n-io/n8n/blob/n8n%402.42.6/packages/nodes-base/nodes/Set/v2/manual.mode.ts).
+- [n8n exported Set assignment fixture](https://github.com/n8n-io/n8n/blob/n8n%402.42.6/packages/nodes-base/nodes/Set/test/Set.v3_3.workflow.json): the `assignments.assignments` string-field shape shared by versions 3.3 and 3.4.
+- [n8n template submission guidelines](https://n8n.notion.site/Template-submission-guidelines-9959894476734da3b402c90b124b1f77): complete description in a main sticky note, accessible configuration and credential hygiene.
 - Repository [MCP contracts](../../src/mcpContracts.ts), [tool implementation](../../src/index.ts), and [signed fixture](../../fixtures/verity-agent-print.json).

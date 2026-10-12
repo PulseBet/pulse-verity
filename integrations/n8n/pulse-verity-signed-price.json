@@ -1,5 +1,5 @@
 {
-  "name": "Pulse Verity Index — verify a signed price",
+  "name": "Read and verify a signed crypto price with MCP and Pulse Verity Index",
   "nodes": [
     {
       "id": "manual",
@@ -15,16 +15,44 @@
     {
       "id": "symbol",
       "name": "Choose symbol",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
       "position": [
         220,
         280
       ],
       "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "symbol-value",
+              "name": "symbol",
+              "value": "BTC",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "onError": "stopWorkflow",
+      "notes": "Edit symbol here. Use 1–20 uppercase letters or digits.",
+      "notesInFlow": true
+    },
+    {
+      "id": "validate-symbol",
+      "name": "Validate symbol",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        280
+      ],
+      "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "// Edit only this symbol. The manual trigger creates exactly one observation.\nconst symbol = 'BTC';\nif (!/^[A-Z0-9]{1,20}$/.test(symbol)) {\n  throw new Error('INPUT_INVALID: use an uppercase crypto symbol.');\n}\nreturn [{ json: { symbol } }];"
+        "jsCode": "const items = $input.all();\nif (items.length !== 1) throw new Error('INPUT_INVALID: expected one symbol.');\nconst symbol = items[0].json.symbol;\nif (typeof symbol !== 'string' || !/^[A-Z0-9]{1,20}$/.test(symbol)) {\n  throw new Error('INPUT_INVALID: use 1–20 uppercase letters or digits.');\n}\nreturn [{ json: { symbol }, pairedItem: { item: 0 } }];"
       },
       "onError": "stopWorkflow"
     },
@@ -34,7 +62,7 @@
       "type": "@n8n/n8n-nodes-langchain.mcpClient",
       "typeVersion": 1.1,
       "position": [
-        440,
+        660,
         280
       ],
       "parameters": {
@@ -64,13 +92,13 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        660,
+        880,
         280
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "function toolBody(response) {\n  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);\n  if (!object(response) || response.error !== undefined || response.isError === true) {\n    throw new Error('UNVERIFIED: the MCP call returned an error. No observation is approved.');\n  }\n  let body = response.structuredContent;\n  if (body === undefined) {\n    const content = response.content;\n    if (!Array.isArray(content) || content.length !== 1 || content[0].type !== 'text') {\n      throw new Error('UNVERIFIED: missing or ambiguous MCP result.');\n    }\n    body = content[0].text;\n    if (typeof body === 'string') {\n      if (body.length > 32768) throw new Error('UNVERIFIED: oversized MCP result.');\n      try { body = JSON.parse(body); }\n      catch { throw new Error('UNVERIFIED: the MCP result is not JSON.'); }\n    }\n  }\n  if (!object(body) || body.error !== undefined || body.success === false || JSON.stringify(body).length > 32768) {\n    throw new Error('UNVERIFIED: the MCP result is unavailable or malformed.');\n  }\n  return body;\n}\n\nconst items = $input.all();\nif (items.length !== 1) throw new Error('UNVERIFIED: expected one price result.');\nconst print = toolBody(items[0].json);\nconst requestedSymbol = $('Choose symbol').first().json.symbol;\nconst signature = /^[A-Za-z0-9+/]{86}==$/;\nif (print.symbol !== requestedSymbol || typeof print.price !== 'number' || !Number.isFinite(print.price)\n    || print.price <= 0 || typeof print.at !== 'string' || !Number.isFinite(Date.parse(print.at))\n    || !['consensus', 'blended', 'indicative', 'composite', 'single-source'].includes(print.grade)\n    || typeof print.signature !== 'string' || !signature.test(print.signature)\n    || !print.v2 || print.v2.sig !== 'pulse-index-v2'\n    || typeof print.v2.signature !== 'string' || !signature.test(print.v2.signature)\n    || typeof print.v2.canonical !== 'string' || print.v2.canonical.length > 8192\n    || typeof print.v2.kid !== 'string' || !/^[A-Za-z0-9._:-]{1,64}$/.test(print.v2.kid)) {\n  throw new Error('UNVERIFIED: a complete signed price record is required.');\n}\nif (print.priceText !== undefined && (typeof print.priceText !== 'string' || !print.priceText.length\n    || print.priceText.length > 100 || Number(print.priceText) !== print.price)) {\n  throw new Error('UNVERIFIED: price and exact price text disagree.');\n}\n// Keep every byte of priceText and v2.canonical unchanged. The verifier takes\n// the print fields at the top level, not an object nested under \"print\".\nreturn [{ json: { print }, pairedItem: { item: 0 } }];"
+        "jsCode": "function toolBody(response) {\n  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);\n  if (!object(response) || response.error !== undefined || response.isError === true) {\n    throw new Error('UNVERIFIED: the MCP call returned an error. No observation is approved.');\n  }\n  let body = response.structuredContent;\n  if (body === undefined) {\n    const content = response.content;\n    if (!Array.isArray(content) || content.length !== 1 || content[0].type !== 'text') {\n      throw new Error('UNVERIFIED: missing or ambiguous MCP result.');\n    }\n    body = content[0].text;\n    if (typeof body === 'string') {\n      if (body.length > 32768) throw new Error('UNVERIFIED: oversized MCP result.');\n      try { body = JSON.parse(body); }\n      catch { throw new Error('UNVERIFIED: the MCP result is not JSON.'); }\n    }\n  }\n  if (!object(body) || body.error !== undefined || body.success === false || JSON.stringify(body).length > 32768) {\n    throw new Error('UNVERIFIED: the MCP result is unavailable or malformed.');\n  }\n  return body;\n}\n\nconst items = $input.all();\nif (items.length !== 1) throw new Error('UNVERIFIED: expected one price result.');\nconst print = toolBody(items[0].json);\nconst requestedSymbol = $('Validate symbol').first().json.symbol;\nconst signature = /^[A-Za-z0-9+/]{86}==$/;\nif (print.symbol !== requestedSymbol || typeof print.price !== 'number' || !Number.isFinite(print.price)\n    || print.price <= 0 || typeof print.at !== 'string' || !Number.isFinite(Date.parse(print.at))\n    || !['consensus', 'blended', 'indicative', 'composite', 'single-source'].includes(print.grade)\n    || typeof print.signature !== 'string' || !signature.test(print.signature)\n    || !print.v2 || print.v2.sig !== 'pulse-index-v2'\n    || typeof print.v2.signature !== 'string' || !signature.test(print.v2.signature)\n    || typeof print.v2.canonical !== 'string' || print.v2.canonical.length > 8192\n    || typeof print.v2.kid !== 'string' || !/^[A-Za-z0-9._:-]{1,64}$/.test(print.v2.kid)) {\n  throw new Error('UNVERIFIED: a complete signed price record is required.');\n}\nif (print.priceText !== undefined && (typeof print.priceText !== 'string' || !print.priceText.length\n    || print.priceText.length > 100 || Number(print.priceText) !== print.price)) {\n  throw new Error('UNVERIFIED: price and exact price text disagree.');\n}\n// Keep every byte of priceText and v2.canonical unchanged. The verifier takes\n// the print fields at the top level, not an object nested under \"print\".\nreturn [{ json: { print }, pairedItem: { item: 0 } }];"
       },
       "onError": "stopWorkflow"
     },
@@ -80,7 +108,7 @@
       "type": "@n8n/n8n-nodes-langchain.mcpClient",
       "typeVersion": 1.1,
       "position": [
-        880,
+        1100,
         280
       ],
       "parameters": {
@@ -110,7 +138,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
+        1320,
         280
       ],
       "parameters": {
@@ -126,14 +154,14 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        200,
-        -40
+        -80,
+        -440
       ],
       "parameters": {
-        "content": "## Pulse Verity Index — signed price observation\n1. Select an n8n Bearer Auth credential in BOTH MCP nodes. Store only the developer token in that credential.\n2. Edit the symbol in Choose symbol (default BTC).\n3. Execute the entire workflow manually. The last node emits VERIFIED only after full-record verification.\n\nVERIFIED describes signature integrity, not freshness, accuracy, or settlement suitability. No trades, transfers, alerts, or automatic retries. Errors stop this execution. See integrations/n8n/README.md.",
-        "height": 230,
-        "width": 1060,
-        "color": 5
+        "content": "# Read and verify a signed crypto price with MCP and Pulse Verity Index\n\n## Who this is for\nDevelopers building crypto data checks who need a signed observation before passing data downstream.\n\n## How it works\nA manual run reads one crypto price from the hosted Pulse Verity Index through MCP. It preserves the complete record, asks the same hosted service to verify it, and outputs VERIFIED only when full-record verification matches that exact observation. Errors stop the workflow; calls have timeouts and no automatic retries.\n\n## Setup\nImport the workflow. Create a developer key at https://thepulse.markets/developers. Store it in an n8n Bearer Auth credential and select that credential in both MCP Client nodes. Set the symbol in Choose symbol, then run the entire workflow from Run manually.\n\n## Requirements\nUse n8n with MCP Client 1.1, Edit Fields 3.4 and Code 2. Verity account limits and n8n hosting costs apply. No AI model or community node is required.\n\n## Customize and use the result\nChange the default BTC symbol in Choose symbol. Connect downstream processing after Require verified record. VERIFIED describes signature integrity, not freshness, accuracy or settlement suitability. Check signed timestamps and quality fields separately; indicative data is unsuitable for settlement. Verification trusts the hosted service over HTTPS. Saved execution data is disabled; instance logging policies still apply.",
+        "height": 620,
+        "width": 1520,
+        "color": 1
       }
     }
   ],
@@ -150,6 +178,17 @@
       ]
     },
     "Choose symbol": {
+      "main": [
+        [
+          {
+            "node": "Validate symbol",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate symbol": {
       "main": [
         [
           {

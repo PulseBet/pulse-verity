@@ -1,5 +1,6 @@
-// Offline workflow checks. Executes the exact exported Code nodes and expressions;
-// replaces the remote transport with synthetic MCP responses. No n8n installation,
+// Offline workflow checks. Maps the fixed Edit Fields string assignment locally,
+// executes the exact exported Code nodes and expressions, and replaces the remote
+// transport with synthetic MCP responses. No n8n installation,
 // network, credentials, private keys, or LLM is required.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -24,12 +25,23 @@ function checkStructure(candidate) {
   const nodes = candidate.nodes;
   assert.equal(new Set(nodes.map(node => node.name)).size, nodes.length);
   assert.equal(new Set(nodes.map(node => node.id)).size, nodes.length);
-  const supported = new Set(['n8n-nodes-base.manualTrigger', 'n8n-nodes-base.stickyNote', 'n8n-nodes-base.code', mcpType]);
+  const supported = new Set(['n8n-nodes-base.manualTrigger', 'n8n-nodes-base.stickyNote', 'n8n-nodes-base.set', 'n8n-nodes-base.code', mcpType]);
   for (const node of nodes) {
     assert.ok(supported.has(node.type), `unsupported node: ${node.type}`);
     assert.ok(!node.disabled && !node.continueOnFail && !node.retryOnFail);
     assert.ok(!node.credentials, 'template must not contain an instance credential reference');
     assert.equal(node.position.length, 2);
+    if (node.type === 'n8n-nodes-base.set') {
+      assert.equal(node.name, 'Choose symbol');
+      assert.equal(node.typeVersion, 3.4);
+      assert.equal(node.onError, 'stopWorkflow');
+      assert.deepEqual(node.parameters, {
+        mode: 'manual',
+        assignments: { assignments: [{ id: 'symbol-value', name: 'symbol', value: 'BTC', type: 'string' }] },
+        includeOtherFields: false,
+        options: {},
+      });
+    }
     if (node.type === 'n8n-nodes-base.code') {
       assert.equal(node.typeVersion, 2);
       assert.equal(node.parameters.mode, 'runOnceForAllItems');
@@ -51,12 +63,13 @@ function checkStructure(candidate) {
     }
   }
   assert.deepEqual(nodes.filter(node => node.type === mcpType).map(node => node.parameters.tool.value), ['get_index_price', 'verify_print']);
-  const path = ['Run manually', 'Choose symbol', 'Read signed price', 'Preserve signed print', 'Verify exact print', 'Require verified record'];
+  const path = ['Run manually', 'Choose symbol', 'Validate symbol', 'Read signed price', 'Preserve signed print', 'Verify exact print', 'Require verified record'];
   assert.equal(Object.keys(candidate.connections).length, path.length - 1);
   for (let i = 0; i < path.length - 1; i++) {
     assert.deepEqual(candidate.connections[path[i]], { main: [[{ node: path[i + 1], type: 'main', index: 0 }]] });
   }
   assert.equal(nodes.filter(node => node.type === 'n8n-nodes-base.manualTrigger').length, 1);
+  assert.equal(nodes.filter(node => node.type === 'n8n-nodes-base.set').length, 1);
 }
 
 // Independent crypto checks on the repository's fixed public fixture. This is a
@@ -103,7 +116,18 @@ function execute(options = {}) {
       $json: clone(input[0]?.json),
       $: name => ({ first: () => clone(results.get(name)?.[0]) }),
     });
-    if (node.type === 'n8n-nodes-base.code') {
+    if (node.type === 'n8n-nodes-base.set') {
+      // Only the literal string mapping used by this template; not an n8n
+      // expression/type-conversion emulator. Invalid string cases exercise the
+      // actual next Code node before either MCP call.
+      const assignments = node.parameters.assignments.assignments;
+      input = input.map(() => ({ json: Object.fromEntries(assignments.map(field => {
+        assert.equal(field.type, 'string');
+        const value = options.symbol ?? field.value;
+        assert.equal(typeof value, 'string');
+        return [field.name, value];
+      })) }));
+    } else if (node.type === 'n8n-nodes-base.code') {
       input = new Script(`(function () { ${node.parameters.jsCode}\n})()`).runInContext(context, { timeout: 1000 });
       input = clone(input);
     } else if (node.type === mcpType) {
@@ -138,6 +162,13 @@ test('structural check rejects a verification bypass', () => {
   const changed = clone(workflow);
   changed.connections['Preserve signed print'].main[0][0].node = 'Require verified record';
   assert.throws(() => checkStructure(changed));
+});
+test('malformed configured symbols stop before any MCP call', () => {
+  for (const symbol of ['', 'btc', 'BTC/USD', ' BTC', 'A'.repeat(21)]) {
+    const calls = [];
+    assert.throws(() => execute({ symbol, calls }), /INPUT_INVALID/);
+    assert.equal(calls.length, 0);
+  }
 });
 for (const format of ['structured', 'parsed-text', 'raw-text']) {
   test(`signed fixture succeeds through ${format} MCP output`, () => {
