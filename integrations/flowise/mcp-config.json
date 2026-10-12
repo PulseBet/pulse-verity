@@ -1,0 +1,6 @@
+{
+  "url": "https://mcp.thepulse.markets/api/index/mcp",
+  "headers": {
+    "Authorization": "Bearer {{$vars.PULSE_API_KEY}}"
+  }
+}

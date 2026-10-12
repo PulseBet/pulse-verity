@@ -1,0 +1,2 @@
+# Install in a separate virtual environment. Python 3.10+.
+google-adk[mcp]==2.11.0

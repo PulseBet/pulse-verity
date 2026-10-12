@@ -3,6 +3,9 @@
 `pulse-verity` connects an AI agent to the **Pulse Verity Index**: signed,
 verifiable crypto index prices through the Model Context Protocol (MCP).
 
+For workflow and framework setup, see the [integration examples](integrations/):
+n8n, LangChain/LangGraph, Google ADK, CrewAI, Dify, Flowise and Langflow.
+
 It exposes five read-only data tools and one private feedback tool:
 
 | Tool | Purpose |
