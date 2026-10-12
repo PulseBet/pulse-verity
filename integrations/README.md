@@ -5,6 +5,7 @@ the public MCP service and package; they do not run another price feed.
 
 | Client | Starting point |
 |---|---|
+| Vercel AI SDK / TypeScript | [Verified price tool and keyless smoke test](ai-sdk/) |
 | n8n | [Manual price-and-verification workflow](n8n/) |
 | LangChain / LangGraph | [Python examples](python/) |
 | Google ADK | [Python examples](python/) |

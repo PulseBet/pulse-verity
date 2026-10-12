@@ -1,0 +1,22 @@
+{
+  "name": "pulse-verity-ai-sdk-example",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node example.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/mcp": "2.0.73",
+    "ai": "7.0.137"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "pulse-verity": "1.3.1",
+    "typescript": "6.0.3"
+  }
+}

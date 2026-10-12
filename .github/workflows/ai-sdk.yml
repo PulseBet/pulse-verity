@@ -1,0 +1,42 @@
+name: AI SDK integration
+
+on:
+  push:
+    branches: [main]
+    paths: ['integrations/ai-sdk/**', '.github/workflows/ai-sdk.yml']
+  pull_request:
+    paths: ['integrations/ai-sdk/**', '.github/workflows/ai-sdk.yml']
+  workflow_dispatch:
+    inputs:
+      live_sample:
+        description: 'Run one keyless BTC read and verification (no LLM)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-sdk-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: integrations/ai-sdk
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - name: Optional live keyless price and record verification
+        if: github.event_name == 'workflow_dispatch' && inputs.live_sample
+        run: timeout 100s npm start -- --symbol BTC

@@ -4,7 +4,7 @@
 verifiable crypto index prices through the Model Context Protocol (MCP).
 
 For workflow and framework setup, see the [integration examples](integrations/):
-n8n, LangChain/LangGraph, Google ADK, CrewAI, Dify, Flowise and Langflow.
+Vercel AI SDK, n8n, LangChain/LangGraph, Google ADK, CrewAI, Dify, Flowise and Langflow.
 
 For the CrewAI Flow template, open [the Python project](integrations/python/#crewai-flow-project)
 and run the documented `crewai install` and `crewai flow kickoff` commands from
