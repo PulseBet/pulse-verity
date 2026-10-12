@@ -1,5 +1,5 @@
 import { createMCPClient, type MCPClient, type MCPClientConfig } from '@ai-sdk/mcp';
-import { jsonSchema, tool } from 'ai';
+import { jsonSchema, tool, type ToolExecutionOptions } from 'ai';
 
 type ObjectValue = Record<string, unknown>;
 export type TransportFactory = () => MCPClientConfig['transport'];
@@ -127,13 +127,17 @@ export async function readVerifiedPrice(
 
 /** Server-side only. Agents receive one tool whose code always verifies first. */
 export function createVerifiedPriceTool(transport: TransportFactory) {
-  return tool({
+  const execute = async ({ symbol }: { symbol: string }, { abortSignal }: ToolExecutionOptions<{}>) =>
+    readVerifiedPrice(transport, symbol, abortSignal);
+  const definition = tool({
     description: 'Read a Pulse Verity Index crypto price and verify its full signed record. ' +
       'Includes observation time and quality. Verification does not establish freshness or settlement suitability.',
     inputSchema: jsonSchema<{ symbol: string }>({
       type: 'object', properties: { symbol: { type: 'string', pattern: '^[A-Za-z0-9]{1,20}$' } },
       required: ['symbol'], additionalProperties: false,
     }),
-    execute: async ({ symbol }, { abortSignal }) => readVerifiedPrice(transport, symbol, abortSignal),
+    execute,
   });
+  // Preserve this example's non-streaming return type for direct CLI execution.
+  return { ...definition, execute };
 }

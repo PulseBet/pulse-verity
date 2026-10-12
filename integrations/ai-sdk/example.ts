@@ -21,7 +21,7 @@ try {
       env: { PULSE_API_KEY: '' },
       stderr: 'ignore',
     }));
-  const result = await priceTool.execute({ symbol }, { toolCallId: 'manual-price-check', messages: [] });
+  const result = await priceTool.execute({ symbol }, { toolCallId: 'manual-price-check', messages: [], context: {} });
   console.log(JSON.stringify(result, null, 2));
 } catch (error) {
   console.error(error instanceof ExampleError ? error.message : 'The example could not complete. Check arguments and dependencies.');

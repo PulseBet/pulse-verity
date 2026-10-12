@@ -60,7 +60,7 @@ for (const mode of ['success', 'text'] as const) {
   test(`real SDK tool executes read + exact-record verification (${mode}) and closes`, async () => {
     const peer = new Peer(mode);
     const priceTool = createVerifiedPriceTool(() => peer);
-    const value = await priceTool.execute({ symbol: 'btc' }, { toolCallId: 'test', messages: [] });
+    const value = await priceTool.execute({ symbol: 'btc' }, { toolCallId: 'test', messages: [], context: {} });
     assert.equal(value.recordValid, true);
     assert.equal(value.priceText, fixture.print.priceText);
     assert.equal(value.freshnessAssessed, false, 'historical fixture must not be described as fresh');
