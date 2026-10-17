@@ -2,11 +2,15 @@
 export const MAX_QUOTA_ERROR_BYTES = 8192;
 export const MAX_RETRY_AFTER_SECONDS = 86400;
 export const DEVELOPER_ACCOUNT_URL = "https://thepulse.markets/developers/access";
+export const DEVELOPER_UPGRADE_URL = "https://thepulse.markets/developers#/portal/pricing";
+export type CapacityAction = "review_plans" | "contact_support";
 
 export type QuotaCode = "RATE_LIMITED" | "MONTHLY_LIMIT";
 export interface QuotaDetails {
   code?: QuotaCode;
   retryAfterSeconds?: number;
+  resetAt?: string;
+  capacityAction?: CapacityAction;
 }
 
 export interface QuotaErrorMetadata {
@@ -14,6 +18,9 @@ export interface QuotaErrorMetadata {
   nextAction: "wait" | "review_access" | "check_limits";
   retryAfterSeconds?: number;
   accountUrl?: string;
+  upgradeUrl?: string;
+  resetAt?: string;
+  capacityAction?: CapacityAction;
 }
 
 function safeRetrySeconds(value: unknown): number | undefined {
@@ -24,6 +31,17 @@ function safeRetrySeconds(value: unknown): number | undefined {
 function parseRetryAfter(value: string | null): number | undefined {
   return value !== null && /^[0-9]{1,5}$/.test(value)
     ? safeRetrySeconds(Number(value)) : undefined;
+}
+
+/** Only a real UTC calendar-month boundary can be presented as the reset. */
+function safeMonthlyReset(value: unknown): string | undefined {
+  if (typeof value !== "string" || !/^\d{4}-(0[1-9]|1[0-2])-01T00:00:00\.000Z$/.test(value)) return undefined;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value ? value : undefined;
+}
+
+function safeCapacityAction(value: unknown): CapacityAction | undefined {
+  return value === "review_plans" || value === "contact_support" ? value : undefined;
 }
 
 /** Never pass through upstream messages, links, account identifiers or headers. */
@@ -54,7 +72,11 @@ export async function readQuotaDetails(response: Response): Promise<QuotaDetails
     const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
     if (!body || typeof body !== "object" || Array.isArray(body)) return fallback;
     const code = (body as Record<string, unknown>).code;
-    if (code === "MONTHLY_LIMIT") return { code };
+    if (code === "MONTHLY_LIMIT") {
+      const resetAt = safeMonthlyReset((body as Record<string, unknown>).resetAt);
+      const capacityAction = safeCapacityAction((body as Record<string, unknown>).capacityAction);
+      return { code, ...(resetAt ? { resetAt } : {}), ...(capacityAction ? { capacityAction } : {}) };
+    }
     if (code === "RATE_LIMITED") return { code, ...fallback };
     return fallback;
   } catch {
@@ -68,13 +90,23 @@ export async function readQuotaDetails(response: Response): Promise<QuotaDetails
 /** Reconstruct metadata rather than forwarding even an internally supplied object. */
 export function quotaErrorGuidance(details: QuotaDetails = {}): { text: string; error: QuotaErrorMetadata } {
   if (details.code === "MONTHLY_LIMIT") {
+    const resetAt = safeMonthlyReset(details.resetAt);
+    const capacityAction = safeCapacityAction(details.capacityAction) ?? "review_plans";
+    const capacityGuidance = capacityAction === "contact_support"
+      ? "For higher capacity, use the Enterprise contact on the plans page; a higher-capacity self-serve plan may not be available. "
+      : "Review available plans and their allowances before choosing an upgrade. ";
     return {
-      text: "Error: the monthly API allowance is exhausted. Read about account access and request limits at "
-        + DEVELOPER_ACCOUNT_URL + ". The allowance resets at the start of the next UTC month. "
-        + "Creating or replacing a key does not reset this account's allowance. Do not repeatedly retry.",
+      text: "Error: the monthly API allowance is exhausted. View plans / upgrade: "
+        + DEVELOPER_UPGRADE_URL + ". " + capacityGuidance
+        + (resetAt ? "Or wait until the quota resets at " + resetAt + ". "
+          : "Or wait until the start of the next UTC month for the allowance to reset. ")
+        + "A plan change does not reset usage already counted this month. "
+        + "Creating or replacing a key does not reset this account's allowance. Do not repeatedly retry. "
+        + "Account access and request limits: " + DEVELOPER_ACCOUNT_URL + ".",
       error: {
         code: "MONTHLY_LIMIT", nextAction: "review_access",
-        accountUrl: DEVELOPER_ACCOUNT_URL
+        accountUrl: DEVELOPER_ACCOUNT_URL, upgradeUrl: DEVELOPER_UPGRADE_URL,
+        capacityAction, ...(resetAt ? { resetAt } : {})
       }
     };
   }

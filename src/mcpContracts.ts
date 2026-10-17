@@ -60,7 +60,10 @@ export const errorSchema = z.object({
   code: z.string().regex(/^[A-Z][A-Z0-9_]{0,79}$/),
   nextAction: z.enum(['wait', 'review_access', 'check_limits', 'reconnect', 'check_input', 'choose_another_symbol', 'report_issue']),
   retryable: z.boolean().optional(), retryAfterSeconds: z.number().int().min(1).max(86400).optional(),
-  accountUrl: z.literal('https://thepulse.markets/developers/access').optional()
+  accountUrl: z.literal('https://thepulse.markets/developers/access').optional(),
+  upgradeUrl: z.literal('https://thepulse.markets/developers#/portal/pricing').optional(),
+  resetAt: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-01T00:00:00\.000Z$/).optional(),
+  capacityAction: z.enum(['review_plans', 'contact_support']).optional()
 });
 export const requestIdSchema = z.string().uuid().describe('Identifier for this MCP call; not a signed price field.');
 export const successSchemas = {

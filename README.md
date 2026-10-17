@@ -310,10 +310,18 @@ HTTP 429 tool errors include `structuredContent.error`. `RATE_LIMITED` means
 wait, with `retryAfterSeconds` when supplied. `MONTHLY_LIMIT` means the monthly
 allowance is exhausted. The response links to
 [account access and request-limit information](https://thepulse.markets/developers/access)
-and returns `nextAction: "review_access"`. The allowance resets at the start of
-the next UTC month. Creating or replacing a key does not reset the account's
-allowance. Unknown limits use `REQUEST_LIMIT` without assuming a monthly
-allowance. No tool automatically retries.
+and preserves `nextAction: "review_access"`. It also returns `upgradeUrl` for
+[View plans / upgrade](https://thepulse.markets/developers#/portal/pricing).
+Review the available plan allowances or wait for the quota reset. When supplied
+by the API, `resetAt` is the actual UTC monthly reset timestamp; older API
+responses explain the next UTC-month reset without inventing a timestamp.
+`capacityAction: "contact_support"` directs accounts without a higher-capacity
+self-serve option to the existing Enterprise contact on the plans page.
+A plan change does not reset usage already counted this month. Creating or
+replacing a key does not reset the account's allowance either. Unknown limits
+use `REQUEST_LIMIT` without assuming a monthly allowance or suggesting an
+upgrade. Authentication failures and outages do not receive an upgrade link.
+No tool automatically retries or starts checkout.
 
 ## Verify locally
 

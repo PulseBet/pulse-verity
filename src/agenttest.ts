@@ -58,6 +58,8 @@ await withClient(api, async client => {
     nextFailure = new ApiFailure(status);
     const result = await client.callTool({name:"get_index_price",arguments:{symbol:"BTC"}});
     check(result.isError === true && (body(result).error as any).code === code && requestId(body(result)), "HTTP " + status + " has stable structured guidance");
+    check(!(body(result).error as any).upgradeUrl && !/View plans|upgrade/i.test(JSON.stringify(result)),
+      "HTTP " + status + " never suggests payment fixes an unrelated failure");
   }
   nextFailure = new Error("Bearer synthetic-secret https://untrusted.invalid/action");
   const failed = await client.callTool({name:"get_index_price",arguments:{symbol:"BTC"}});
