@@ -345,8 +345,9 @@ await client.connect(clientTransport);
 try {
   ok(client.getServerVersion()?.version === SERVER_VERSION, "MCP handshake reports the release version");
   const { tools } = await client.listTools();
-  ok(tools.length === 6 && ["get_index_price", "get_index_batch", "list_index_assets", "get_settlement_print", "verify_print", "submit_verity_feedback"]
-    .every((name) => tools.some((tool) => tool.name === name)), "existing tools remain and one separate feedback write tool is registered");
+  ok(tools.length === 9 && ["get_index_price", "get_index_batch", "list_index_assets", "get_recorded_print", "get_settlement_print",
+    "get_index_history", "get_account_status", "verify_print", "submit_verity_feedback"]
+    .every((name) => tools.some((tool) => tool.name === name)), "existing tools remain, the recorded-print alias and 1.3.4 tools are added, and one separate feedback write tool is registered");
   ok(tools.filter((tool) => tool.name !== "submit_verity_feedback").every((tool) => tool.annotations?.readOnlyHint && tool.annotations?.destructiveHint === false),
     "price and verification tools stay read-only");
   const priceResult = await client.callTool({ name: "get_index_price", arguments: { symbol: "BTC" } });
@@ -364,6 +365,8 @@ try {
     "catalog filters use the detailed keyed endpoint");
   await client.callTool({ name: "get_settlement_print", arguments: { symbol: "BTC", at: "1787911200000" } });
   ok(calls.at(-1)?.path === "/api/index/v1/print", "archive preserves existing signed endpoint and epoch milliseconds input");
+  await client.callTool({ name: "get_recorded_print", arguments: { symbol: "BTC", at: "1787911200000" } });
+  ok(calls.at(-1)?.path === "/api/index/v1/print" && calls.at(-1)?.params.at === "1787911200000", "get_recorded_print uses the same signed endpoint");
   const verified = await client.callTool({ name: "verify_print", arguments: signedRow });
   const verifiedOutput = verified.structuredContent as Record<string, unknown>;
   ok(verifiedOutput.valid === true && verifiedOutput.metadataSigned === false
@@ -444,6 +447,7 @@ try {
     ["list_index_assets", { offset: 100001 }],
     ["list_index_assets", { status: "arbitrary" }],
     ["get_settlement_print", { symbol: "BTC", at: "not-a-date" }],
+    ["get_recorded_print", { symbol: "BTC", at: "not-a-date" }],
     ["get_index_price", { symbol: "../pubkey" }],
     ["verify_print", { ...exactReceipt, grade: "composite\nextra" }],
     ["verify_print", { ...exactReceipt, price: 1.24 }]

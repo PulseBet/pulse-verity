@@ -67,14 +67,19 @@ export const errorSchema = z.object({
   hostedServerUrl: z.literal('https://mcp.thepulse.markets/api/index/mcp').optional(),
   // MONTHLY_LIMIT resets on a UTC month boundary; KEY_REQUIRED on the next UTC day.
   resetAt: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}Z$/).optional(),
-  capacityAction: z.enum(['review_plans', 'contact_support']).optional()
+  capacityAction: z.enum(['review_plans', 'contact_support']).optional(),
+  // TOO_MANY_SYMBOLS / BATCH_TOO_LARGE (1.3.4): the plan's per-request limit and the count sent.
+  batchLimit: z.number().int().min(1).max(100_000).optional(),
+  requested: z.number().int().min(1).max(100_000).optional(),
+  plan: z.enum(['Developer', 'Basic', 'Builder', 'Commercial', 'Enterprise']).optional()
 });
 export const requestIdSchema = z.string().uuid().describe('Identifier for this MCP call; not a signed price field.');
 export const successSchemas = {
   get_index_price: signedPrintSchema,
   get_index_batch: batchSchema,
   list_index_assets: catalogSchema,
-  get_settlement_print: signedPrintSchema.extend({
+  // get_settlement_print is the earlier name of this tool and shares this contract.
+  get_recorded_print: signedPrintSchema.extend({
     // Recorded rows retain the cadence band, not live delivery-age measurements.
     cadence: cadenceSchema.partial().required({band: true}).nullable().optional(),
     qualityRecorded: z.boolean().optional(),
@@ -85,6 +90,70 @@ export const successSchemas = {
   verify_print: verificationSchema
 };
 export type ReadToolName = keyof typeof successSchemas;
+
+const monthlyReset = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-01T00:00:00\.000Z$/);
+/** GET /api/index/v1/account (get_account_status, 1.3.4). Keyed, never metered.
+ * The adapter outputs only these fields and writes upgradeUrl itself. */
+export const accountStatusSchema = z.object({
+  success: z.literal(true),
+  plan: z.string().regex(/^[A-Z][A-Za-z]{1,19}$/).describe('The plan name customers see, e.g. Developer'),
+  used: count.describe('Calls counted this UTC month, account-wide'),
+  limit: count.describe('The monthly allowance'), remaining: count,
+  resetAt: monthlyReset, perMinute: count, batchMaxSymbols: count,
+  capacityAction: z.enum(['review_plans', 'contact_support']).optional(),
+  upgradeUrl: z.literal('https://thepulse.markets/developers#/portal/pricing')
+});
+
+const nullableFinite = finite.nullable();
+const identity = z.object({
+  assetId: text(240), symbol: text(128).optional(), identityType: z.enum(['native', 'contract']).optional(),
+  namespace: text(80).nullable().optional(), nativeId: text(160).nullable().optional(),
+  network: text(80).nullable().optional(), contractAddress: text(160).nullable().optional()
+});
+const spread = z.object({ minimum: nullableFinite, average: nullableFinite }).nullable().optional();
+export const HISTORY_MAX_ROWS = 1000;
+/** GET /api/index/v1/history (get_index_history, 1.3.4). Candles and metrics are
+ * unsigned summaries. verifiedObservations rows carry the v1 price signature
+ * only; a row's price is its exact signed text. */
+export const historySchema = z.object({
+  success: z.literal(true),
+  symbol: z.string().regex(/^[A-Za-z0-9]{1,20}$/),
+  asset: identity.nullable().optional(),
+  identityBinding: z.enum(['legacy-symbol-only', 'canonical-asset-id']).optional(),
+  dataset: text(64), contemporaneouslySigned: z.boolean(), note: text(2048).optional(),
+  provenance: z.object({
+    sourceClass: text(128).optional(), methodologyVersions: z.array(text(64)).max(20).optional(),
+    signedObservations: count.optional(), totalObservations: count.optional(),
+    coverage: spread, confidence: spread
+  }).optional(),
+  interval: z.enum(['1m', '5m', '1h', '1d']),
+  from: timestamp, to: timestamp, rangeClamped: z.boolean(),
+  verifiedArchiveSince: timestamp.optional(),
+  pagination: z.object({
+    limit: count.max(5_000), nextCursor: z.string().max(2_048).regex(/^[A-Za-z0-9_-]+$/).nullable(), truncated: z.boolean(),
+    coverage: z.object({
+      requestedFrom: timestamp.optional(), requestedTo: timestamp.optional(), returned: count.optional(),
+      earliestReturnedAt: timestamp.nullable().optional(), latestReturnedAt: timestamp.nullable().optional(),
+      scanComplete: z.boolean().optional(), verificationComplete: z.boolean().optional(),
+      unverifiableRows: count.optional(), truncationReason: z.enum(['item-limit', 'block-scan-limit']).nullable().optional(),
+      availableFrom: timestamp.nullable().optional(), availableTo: timestamp.nullable().optional()
+    }).optional()
+  }),
+  metrics: z.object({
+    periodReturn: nullableFinite, annualizedVolatility: nullableFinite, maxDrawdown: nullableFinite,
+    observationCount: count, candleCount: count
+  }).optional(),
+  verifiedObservations: z.array(z.object({
+    assetId: text(240).optional(), symbol: z.string().regex(/^[A-Za-z0-9]{1,20}$/),
+    price: z.string().min(1).max(100).regex(/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/),
+    at: timestamp, grade: text(20).nullable(), signature: signature.nullable(), kid: kid.nullable(),
+    identityBinding: z.literal('legacy-symbol-only').optional()
+  })).max(HISTORY_MAX_ROWS).optional(),
+  candles: z.array(z.object({
+    at: timestamp, open: finite, high: finite, low: finite, close: finite, observations: count,
+    coverage: finite.optional(), confidence: finite.optional()
+  })).max(HISTORY_MAX_ROWS)
+});
 
 /** MCP SDKs require an object root. The declared object admits the bounded
  * error alternative while retaining legacy success fields at their old paths.

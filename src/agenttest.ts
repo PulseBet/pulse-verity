@@ -35,7 +35,7 @@ const requestId = (result: Record<string, unknown>) => typeof result.requestId =
 
 await withClient(api, async client => {
   const { tools } = await client.listTools();
-  check(tools.length === 6 && tools.every(t => t.outputSchema?.type === "object"), "all tools advertise object output schemas");
+  check(tools.length === 9 && tools.every(t => t.outputSchema?.type === "object"), "all tools advertise object output schemas");
   const feedback = tools.find(t => t.name === "submit_verity_feedback")!;
   check(feedback.annotations?.readOnlyHint === false && feedback.annotations?.destructiveHint === false,
     "feedback accurately declares a non-destructive write");

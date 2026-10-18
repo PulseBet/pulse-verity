@@ -135,6 +135,8 @@ const call = async (client, name, args) => {
     for (const [name, args] of [
       ['get_index_batch', { symbols: ['BTC', 'ETH'] }], ['list_index_assets', {}],
       ['get_settlement_print', { symbol: 'BTC', at: '2026-10-17T00:00:00.000Z' }], ['get_index_price', { symbol: 'DOGE' }],
+      ['get_recorded_print', { symbol: 'BTC', at: '2026-10-17T00:00:00.000Z' }], ['get_account_status', {}],
+      ['get_index_history', { symbol: 'BTC' }],
       ['submit_verity_feedback', { category: 'bug', surface: 'get_index_price', expected: 'A price', actual: 'No price', reproduction: ['Ask for DOGE'] }]
     ]) {
       const { result, text, error } = await call(client, name, args);
@@ -242,7 +244,7 @@ await withClient(async () => ({}), async (client) => {
 await withClient(createApiClient('', fakeOk), async (client) => {
   const tools = Object.fromEntries((await client.listTools()).tools.map((t) => [t.name, t.description]));
   ok('get_index_price names the keyless samples', /Without a developer key, only limited daily BTC, ETH and SOL samples/.test(tools.get_index_price));
-  for (const name of ['get_index_batch', 'list_index_assets', 'get_settlement_print'])
+  for (const name of ['get_index_batch', 'list_index_assets', 'get_recorded_print', 'get_settlement_print', 'get_index_history', 'get_account_status'])
     ok(name + ' says it needs a key or the hosted server', tools[name].includes('Needs a developer key (PULSE_API_KEY) or the hosted server.'));
   ok('verify_print says it works without a key', tools.verify_print.includes('Works without a developer key.'));
   ok('feedback says it needs a key or the hosted server', tools.submit_verity_feedback.includes('developer key (PULSE_API_KEY) or the hosted server'));

@@ -5,7 +5,7 @@ export const FEEDBACK_MAX_RECORDS = 1000;
 export const FEEDBACK_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 export const feedbackStatusSchema = z.enum(['received', 'triaged', 'in_progress', 'resolved', 'closed']);
 export const feedbackSurfaceSchema = z.enum([
-  'get_index_price', 'get_index_batch', 'list_index_assets', 'get_settlement_print', 'verify_print',
+  'get_index_price', 'get_index_batch', 'list_index_assets', 'get_recorded_print', 'get_settlement_print', 'verify_print',
   '/api/index/v1/price', '/api/index/v1/batch', '/api/index/v1/print',
   '/api/index/v1/verity/catalog', '/api/index/v1/pubkey', '/api/index/v1/sample',
   '/api/index/v1/history', '/api/index/v1/metadata', '/api/index/v1/research/compare',

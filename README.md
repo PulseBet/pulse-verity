@@ -26,7 +26,7 @@ available, run this command in your terminal. It registers the pinned stdio
 server; `npx` downloads and starts the package when your client connects.
 
 ```bash
-claude mcp add pulse-verity -- npx -y pulse-verity@1.3.3
+claude mcp add pulse-verity -- npx -y pulse-verity@1.3.4
 ```
 
 Start a new Claude Code session. Leave `PULSE_API_KEY` unset for this keyless
@@ -70,7 +70,7 @@ for the exact fields and trust boundary.
 | Access | What you can do |
 |---|---|
 | No account or key | Limited `get_index_price` samples for BTC, ETH and SOL; local `verify_print` using the published keys. Sample availability and rate limits apply. |
-| Your own developer key | Request other supported symbols, catalogue pages, batches and recorded prints, subject to your account's plan, allowance and current data availability. Private feedback also needs a key and enabled intake; the beginner workflow does not submit feedback. |
+| Your own developer key | Request other supported symbols, catalogue pages, batches, recorded prints and history, and check your plan and usage, subject to your account's plan, allowance and current data availability. Private feedback also needs a key and enabled intake; the beginner workflow does not submit feedback. |
 | Hosted MCP | Sign in with Google (or an existing developer password or key) from your client; no key to copy. The keyless workflow above uses the installed stdio package. |
 
 Create or sign in to your account at the
@@ -91,16 +91,28 @@ and run the documented `crewai install` and `crewai flow kickoff` commands from
 that directory. The Flow reads one index price and verifies its signed record
 without an LLM.
 
-It exposes five read-only data tools and one private feedback tool:
+It exposes read-only data, verification and account tools, and one private feedback tool:
 
 | Tool | Purpose |
 |---|---|
 | `get_index_price(symbol)` | Return the current signed index value. |
 | `get_index_batch(symbols)` | Read up to 100 symbols per request (your plan may allow fewer) with signed successful rows and per-symbol errors. |
 | `list_index_assets(limit, offset, band?, status?)` | Discover one catalog page with coverage and measured cadence. |
-| `get_settlement_print(symbol, at)` | Return the recorded signed print nearest a moment. |
+| `get_recorded_print(symbol, at)` | Return the recorded signed print nearest a moment. `get_settlement_print` is its earlier name and still works. |
+| `get_index_history(symbol, dataset?, interval?, from?, to?, limit?, cursor?, assetId?)` | Read one page of history: candles, summary metrics and, for `dataset: "verified"`, the signed observations behind them. |
+| `get_account_status()` | Show your plan, calls used this UTC month, the monthly limit, the reset time and per-request limits. Does not count toward the allowance. |
 | `verify_print(print)` | Verify a price and its signed quality fields locally with the published public key. |
 | `submit_verity_feedback(report)` | Submit a private API report for human review and receive a tracking receipt. |
+
+`get_index_history` reads `dataset: "verified"` (the default, built from prints
+Pulse signed live) or `"reconstructed"` (rebuilt history, not signed at the
+historical time, at `interval` `1h` or `1d`). Candles and metrics are unsigned
+summaries. Each `verifiedObservations` row carries `symbol`, `price` (the exact
+signed text), `at`, `grade`, `signature` and `kid`, which `verify_print` checks
+as a price-only print. How far back history reaches depends on your plan: when
+a request starts earlier, `rangeClamped` is `true` and `from` shows where the
+page begins. Pages hold up to 1000 observations; pass `pagination.nextCursor`
+as `cursor` for the next page.
 
 Only the feedback tool writes a report. It requires a developer key and an enabled
 feedback service; it cannot trade, transfer funds or change prices. This package
@@ -142,7 +154,7 @@ configuration; never share it in chat.
 ```bash
 claude mcp add pulse-verity \
   --env PULSE_API_KEY=pidx_your_key_here \
-  -- npx -y pulse-verity@1.3.3
+  -- npx -y pulse-verity@1.3.4
 ```
 
 For any stdio MCP client:
@@ -152,7 +164,7 @@ For any stdio MCP client:
   "mcpServers": {
     "pulse-verity": {
       "command": "npx",
-      "args": ["-y", "pulse-verity@1.3.3"],
+      "args": ["-y", "pulse-verity@1.3.4"],
       "env": { "PULSE_API_KEY": "pidx_your_key_here" }
     }
   }
@@ -174,7 +186,7 @@ directory approval, publication or a successful authenticated connection.
 ### Cursor marketplace package
 
 This repository includes `.cursor-plugin/plugin.json` and `mcp.json` for
-Cursor's plugin loader. The plugin is pinned to `pulse-verity@1.3.3`
+Cursor's plugin loader. The plugin is pinned to `pulse-verity@1.3.4`
 package with `npx`; Node.js 18 or newer is required. No platform engine code
 or private repository access is included.
 
@@ -198,7 +210,7 @@ grok plugin install PulseBet/pulse-verity --trust
 ```
 
 Start a new Grok Build session, then ask for the current Bitcoin index price.
-The plugin starts `npx -y pulse-verity@1.3.3`; Node.js 18 or newer and npm are
+The plugin starts `npx -y pulse-verity@1.3.4`; Node.js 18 or newer and npm are
 required. Limited BTC, ETH and SOL samples work without an API key. To enable
 catalogue, batch and recorded-print requests, set `PULSE_API_KEY` in the
 environment that launches Grok Build, then start a new session. Get a developer
@@ -215,7 +227,7 @@ The plugin source is fetched from `github.com`. At startup, `npx` may fetch
 the pinned package and its dependencies from the configured npm registry
 (`registry.npmjs.org` by default). During tool use, the server makes GET
 requests to `https://mcp.thepulse.markets` for price, batch, recorded-print,
-catalogue, sample and public-key endpoints under `/api/index/v1/`. The feedback
+history, account, catalogue, sample and public-key endpoints under `/api/index/v1/`. The feedback
 tool alone uses POST at `/api/index/v1/feedback`. Requests identify the client
 with `User-Agent: pulse-verity/<version>`. A configured
 `PULSE_API_KEY` is sent only to that origin for keyed requests; samples and
@@ -231,7 +243,7 @@ gemini extensions install https://github.com/PulseBet/pulse-verity --skip-settin
 ```
 
 Restart Gemini CLI, then ask for the current Bitcoin index price. The extension
-starts the pinned `pulse-verity@1.3.3` package through `npx`; Node.js and npm
+starts the pinned `pulse-verity@1.3.4` package through `npx`; Node.js and npm
 must be available. Limited BTC, ETH and SOL samples work without a key. Gemini may warn
 that the optional setting is unset; that does not prevent keyless startup.
 
@@ -254,7 +266,7 @@ not a listing in the consumer Gemini chat app.
 
 ### Manual MCP configuration
 
-All of these pin `npx -y pulse-verity@1.3.3`. The examples show a placeholder
+All of these pin `npx -y pulse-verity@1.3.4`. The examples show a placeholder
 `PULSE_API_KEY`; omit the `env` entry for the keyless sample workflow.
 
 **Codex CLI** — `~/.codex/config.toml`:
@@ -262,27 +274,27 @@ All of these pin `npx -y pulse-verity@1.3.3`. The examples show a placeholder
 ```toml
 [mcp_servers.pulse-verity]
 command = "npx"
-args = ["-y", "pulse-verity@1.3.3"]
+args = ["-y", "pulse-verity@1.3.4"]
 env = { PULSE_API_KEY = "pidx_your_key" }
 ```
 
 **Windsurf** — `~/.codeium/windsurf/mcp_config.json`, and **Cursor** — `~/.cursor/mcp.json`:
 
 ```json
-{ "mcpServers": { "pulse-verity": { "command": "npx", "args": ["-y", "pulse-verity@1.3.3"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+{ "mcpServers": { "pulse-verity": { "command": "npx", "args": ["-y", "pulse-verity@1.3.4"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
 ```
 
 **VS Code (Copilot agent mode)** — `.vscode/mcp.json`:
 
 ```json
-{ "servers": { "pulse-verity": { "type": "stdio", "command": "npx", "args": ["-y", "pulse-verity@1.3.3"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+{ "servers": { "pulse-verity": { "type": "stdio", "command": "npx", "args": ["-y", "pulse-verity@1.3.4"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
 ```
 
 **Gemini CLI** — `~/.gemini/settings.json`, same `mcpServers` block as Cursor.
 
 ## Claude Desktop: one-click install
 
-Download [`pulse-verity-1.3.3.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.3.3/pulse-verity-1.3.3.mcpb),
+Download [`pulse-verity-1.3.4.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.3.4/pulse-verity-1.3.4.mcpb),
 open it with Claude Desktop (macOS or Windows), and leave the optional key blank
 to try limited BTC, ETH and SOL samples. Add your developer key for catalogue,
 batch and recorded-print requests. The bundle contains the same compiled server modules npm ships, with its runtime
@@ -304,13 +316,13 @@ documented above.
 
 ## Security boundary
 
-- Five read-only data/verification tools and one explicit private feedback-submission tool.
+- Read-only data, verification and account tools, and one explicit private feedback-submission tool.
 - API origin pinned to the public Pulse Verity Index API.
 - Developer key read from local configuration and sent only to that API.
 - Print verification happens locally using ECDSA P-256/SHA-256.
 - HTTP requests use a 15-second timeout, a 1 MiB response limit and no redirects.
 - Verification accepts at most 16 published keys; refreshes coalesce and are limited to once per 30 seconds.
-- API failures retain only allowlisted quota codes, the keyless `KEY_REQUIRED` code with a validated reset time, and bounded retry delays, never raw remote bodies, links, headers or transport errors. Sign-up and hosted-server links are built into the package. Returned credentials are redacted.
+- API failures retain only allowlisted quota codes, the keyless `KEY_REQUIRED` code with a validated reset time, allowlisted batch-limit and history codes with validated numbers, and bounded retry delays, never raw remote bodies, links, headers or transport errors. Usage notes are rebuilt from a strictly parsed header. Sign-up and hosted-server links are built into the package. Returned credentials are redacted.
 - No wallet, account, platform-engine, venue-level, or private repository code.
 
 See [SECURITY.md](SECURITY.md) for reporting instructions.
@@ -405,6 +417,18 @@ use `REQUEST_LIMIT` without assuming a monthly allowance or suggesting an
 upgrade. Authentication failures and outages do not receive an upgrade link.
 No tool automatically retries or starts checkout.
 
+A batch request that names more symbols than your plan allows per request
+returns `code: "TOO_MANY_SYMBOLS"`, `nextAction: "check_limits"`, the plan's
+`batchLimit`, the `requested` count and the plans page as `upgradeUrl`; split
+the request. `get_account_status` shows `batchMaxSymbols` before you send one.
+
+Once your account has used 80%, and again 95%, of its monthly allowance, a
+successful read adds a second text block starting "Note for the user:" with the
+calls used, the limit and the reset time. The structured result is unchanged.
+The package writes that note itself from a strictly parsed response header.
+If the server you reach does not offer account status yet, `get_account_status`
+says so and links the developer portal, where the same figures are shown.
+
 Without a key, an HTTP 401 from the keyless sample with code `KEY_REQUIRED`
 means this network's samples are used up for the UTC day. The tool error has
 `code: "KEY_REQUIRED"`, `nextAction: "get_key"`, `getKeyUrl`,
@@ -472,8 +496,8 @@ no saved receipt is claimed and the agent must not repeatedly retry.
 The tool does not run submitted instructions, create pull requests or change
 production. Humans review reports before any fix is proposed.
 
-Version `1.3.3` is published on npm and its versioned MCPB is available in
-[GitHub Releases](https://github.com/PulseBet/pulse-verity/releases/latest).
+This README describes version `1.3.4`. Each npm release has a matching
+versioned MCPB in [GitHub Releases](https://github.com/PulseBet/pulse-verity/releases/latest).
 Pinned installations keep their configured package version until the
 configuration is updated. Unpinned installations may resolve newer npm releases.
 The hosted service is deployed separately; inspect its advertised tools rather

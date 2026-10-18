@@ -6,14 +6,16 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { readQuotaDetails, quotaErrorGuidance, readKeyRequiredDetails, safeDailyReset } from "./quotaError.js";
-import type { QuotaDetails, KeyRequiredDetails } from "./quotaError.js";
-import { toolOutputShape, validateToolSuccess, errorSchema, requestIdSchema } from "./mcpContracts.js";
+import { readQuotaDetails, quotaErrorGuidance, readKeyRequiredDetails, safeDailyReset, readBoundedErrorObject,
+  readBatchRefusal, batchRefusalGuidance, parseUsageHeader, usageWarning, usageNoteForUser, safeIsoTimestamp,
+  USAGE_HEADER, DEVELOPER_UPGRADE_URL, DEVELOPER_ACCOUNT_URL } from "./quotaError.js";
+import type { QuotaDetails, KeyRequiredDetails, BatchRefusalDetails, UsageHint } from "./quotaError.js";
+import { toolOutputShape, validateToolSuccess, errorSchema, requestIdSchema, accountStatusSchema, historySchema, HISTORY_MAX_ROWS } from "./mcpContracts.js";
 import type { ReadToolName } from "./mcpContracts.js";
 import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, containsFeedbackTranscript, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
 import type { FeedbackInput } from "./feedbackContract.js";
 
-export const SERVER_VERSION = "1.3.3";
+export const SERVER_VERSION = "1.3.4";
 export const USER_AGENT = "pulse-verity/" + SERVER_VERSION;
 export const API_BASE = "https://mcp.thepulse.markets";
 /** Built into the package; never taken from an API response. */
@@ -46,7 +48,9 @@ const API_PATHS = [
   "/api/index/v1/verity/catalog", "/api/index/v1/pubkey",
   // The keyless taste. Reached only when PULSE_API_KEY is absent; see the
   // routing in createApiClient and the boot note at the bottom of this file.
-  "/api/index/v1/sample", "/api/index/v1/feedback"
+  "/api/index/v1/sample", "/api/index/v1/feedback",
+  // 1.3.4: the account's plan and usage (keyed, never metered) and index history.
+  "/api/index/v1/account", "/api/index/v1/history"
 ] as const;
 
 /** Assets the keyless sample covers. Everything else needs a developer key. */
@@ -104,7 +108,7 @@ export const KEYLESS_SAMPLE_NOTE =
 const KEYLESS_INSTRUCTIONS =
   "Pulse Verity is running without a developer key. Note for the user: get_index_price answers limited keyless samples for " +
   SAMPLE_LIST + ", a small number per network each UTC day, and verify_print works without a key. " +
-  "Other assets, batch reads, recorded prints and feedback need a Pulse Verity developer account. " + ACCOUNT_TEXT;
+  "Other assets, batch reads, recorded prints, history, account status and feedback need a Pulse Verity developer account. " + ACCOUNT_TEXT;
 type ApiPath = typeof API_PATHS[number];
 export type ApiClient = (path: ApiPath, params?: Record<string, string>, feedback?: FeedbackInput) => Promise<Record<string, unknown>>;
 
@@ -117,6 +121,10 @@ const PriceTextSchema = z.string().min(1).max(100)
   .regex(/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/)
   .refine((value) => Number.isFinite(Number(value)), "Price must be finite");
 const TimestampSchema = SafeText(40).refine((value) => Number.isFinite(Date.parse(value)), "Invalid timestamp");
+/** An ISO-8601 calendar time with an explicit zone, e.g. 2026-10-01T00:00:00Z. */
+const IsoTimeSchema = z.string().max(40)
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/, "Expected an ISO-8601 time with a zone, e.g. 2026-10-01T00:00:00Z")
+  .refine((value) => Number.isFinite(Date.parse(value)), "Invalid time");
 const PrintFields = {
   symbol: SymbolSchema,
   price: z.union([PriceTextSchema, z.number().finite()]),
@@ -247,8 +255,44 @@ export function verifyRecordV2(input: unknown, publicKeyPem: string): PrintV2Ver
 // API origin and paths are pinned. Redirects never receive the developer key.
 // Errors retain only allowlisted quota metadata, never raw upstream text or links.
 export class ApiFailure extends Error {
-  constructor(readonly status: number, readonly quota: QuotaDetails = {}) { super("HTTP " + status); }
+  constructor(readonly status: number, readonly quota: QuotaDetails = {}, readonly detail: FailureDetail = {}) { super("HTTP " + status); }
 }
+
+/** What survives from a 400/403/404/409 body: a batch refusal's validated
+ *  numbers, or one of the history codes below. Never text. */
+export interface FailureDetail { batch?: BatchRefusalDetails; code?: HistoryErrorCode }
+
+/** /v1/history refusals this package recognises, each with its own wording. */
+const HISTORY_ERRORS = {
+  BAD_QUERY: [400, "check_input", "Error: the history request was not accepted. Pass symbol, dataset (verified or reconstructed) and interval (1m, 5m, 1h or 1d)."],
+  BAD_INTERVAL: [400, "check_input", "Error: reconstructed history is served at interval 1h or 1d."],
+  BAD_LIMIT: [400, "check_input", "Error: limit must be a whole number from 1 to " + HISTORY_MAX_ROWS + "."],
+  BAD_RANGE: [400, "check_input", "Error: from and to must be valid ISO-8601 times, with from before to."],
+  BAD_CURSOR_OR_IDENTITY: [400, "check_input", "Error: the cursor or assetId does not match this query. Repeat the same symbol, dataset and interval with the previous page's nextCursor, or start again without a cursor."],
+  RESEARCH_NOT_INCLUDED: [403, "review_access", "Error: this account's plan does not include history. Plans and what each includes: " + DEVELOPER_UPGRADE_URL],
+  UNSUPPORTED_SYMBOL: [404, "choose_another_symbol", "Error: no Pulse Verity crypto asset matches this symbol."],
+  UNSUPPORTED_ASSET: [404, "choose_another_symbol", "Error: no Pulse Verity crypto asset matches this symbol or assetId."],
+  ASSET_ID_REQUIRED: [409, "check_input", "Error: this symbol identifies more than one asset. Pass its canonical assetId as well."],
+  VERIFIED_IDENTITY_NOT_BOUND: [409, "check_input", "Error: signed history for this ticker cannot be tied to one asset, because the ticker maps to more than one; no asset-specific signed history is available."]
+} as const satisfies Record<string, readonly [number, "check_input" | "review_access" | "choose_another_symbol", string]>;
+type HistoryErrorCode = keyof typeof HISTORY_ERRORS;
+function historyErrorCode(value: unknown, status: number): HistoryErrorCode | undefined {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(HISTORY_ERRORS, value)
+    && HISTORY_ERRORS[value as HistoryErrorCode][0] === status ? value as HistoryErrorCode : undefined;
+}
+
+/** The account endpoint answered 404: this server does not offer it yet. */
+class AccountStatusUnavailable extends Error {}
+export const ACCOUNT_STATUS_UNAVAILABLE_TEXT =
+  "Error: account status is not available from this Pulse Verity server yet. The account's plan, usage and limits are shown at " + DEVELOPER_ACCOUNT_URL;
+/** A history request this package refuses before any network call. */
+class HistoryInputError extends Error {
+  constructor(readonly code: "BAD_INTERVAL" | "BAD_RANGE") { super(code); }
+}
+
+/** Usage hints ride beside a response body, never inside it: structured
+ *  output keeps exactly the fields its schema names. */
+const usageHints = new WeakMap<object, UsageHint>();
 type FeedbackFailureCode = typeof feedbackFailureCodes[number];
 class FeedbackFailure extends Error {
   constructor(readonly code: FeedbackFailureCode, readonly retryAfterSeconds?: number) { super(code); }
@@ -292,7 +336,12 @@ function sanitizeResponse(value: unknown, apiKey: string, depth = 0): unknown {
   return value;
 }
 
-export function describeApiError(error: unknown): string {
+export function describeApiError(error: unknown, tool?: string): string {
+  if (error instanceof AccountStatusUnavailable) return ACCOUNT_STATUS_UNAVAILABLE_TEXT;
+  if (error instanceof HistoryInputError) return HISTORY_ERRORS[error.code][2];
+  if (error instanceof ApiFailure && error.detail.batch) return batchRefusalGuidance(error.detail.batch).text;
+  if (error instanceof ApiFailure && error.detail.code) return HISTORY_ERRORS[error.detail.code][2];
+  if (error instanceof ApiFailure && error.status === 404 && tool === "get_index_history") return "Error: history for this symbol is unavailable.";
   if (error instanceof InvalidResponse) return "Error: the API response did not match the expected format. Report this call's requestId; no usable price or saved feedback receipt was confirmed.";
   if (error instanceof FeedbackFailure) {
     const messages: Record<FeedbackFailureCode, string> = {
@@ -395,6 +444,16 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
         const details = await readKeyRequiredDetails(response);
         throw details ? new KeyRequired(details) : new NeedsKey(NEEDS_KEY_TEXT);
       }
+      // A batch refusal names the plan's limit; a history refusal names why.
+      // Only validated numbers and allowlisted codes survive the bounded read.
+      const isBatch = path === "/api/index/v1/batch" && response.status === 400;
+      const isHistory = path === "/api/index/v1/history" && [400, 403, 404, 409].includes(response.status);
+      if (isBatch || isHistory) {
+        const body = await readBoundedErrorObject(response);
+        const batch = isBatch ? readBatchRefusal(body) : undefined;
+        const code = isHistory ? historyErrorCode(body?.code, response.status) : undefined;
+        throw new ApiFailure(response.status, {}, { ...(batch ? { batch } : {}), ...(code ? { code } : {}) });
+      }
       await response.body?.cancel();
       throw new ApiFailure(response.status);
     }
@@ -427,6 +486,12 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
       const sample = body as Record<string, unknown>;
       if ("note" in sample) sample.note = KEYLESS_SAMPLE_NOTE;
       if ("getKey" in sample) sample.getKey = DEVELOPER_SIGNUP_URL;
+    }
+    // Past 80% and 95% of the month, a keyed response says so in a header.
+    // Parsed strictly; the note the person reads is built by this package.
+    if (keyed) {
+      const hint = parseUsageHeader(response.headers.get(USAGE_HEADER));
+      if (hint) usageHints.set(body, hint);
     }
     return body as Record<string, unknown>;
   };
@@ -531,14 +596,32 @@ export class PublicKeyCache {
 }
 
 class InvalidResponse extends Error {}
-const asResult = (tool: ReadToolName, output: Record<string, unknown>, requestId: string) => {
-  try { validateToolSuccess(tool, output); } catch { throw new InvalidResponse(); }
+/** The JSON text first, exactly as before; each note is a SEPARATE text block
+ *  written by this package, never a field of structuredContent. */
+const asOutput = (output: Record<string, unknown>, requestId: string, notes: string[] = []) => {
   const structuredContent = { ...output, requestId };
-  return { content: [{ type: "text" as const, text: JSON.stringify(structuredContent, null, 2) }], structuredContent };
+  return { content: [{ type: "text" as const, text: JSON.stringify(structuredContent, null, 2) },
+    ...notes.map((text) => ({ type: "text" as const, text }))], structuredContent };
 };
-const asError = (error: unknown, requestId: string) => {
+const asResult = (tool: ReadToolName, output: Record<string, unknown>, requestId: string, notes: string[] = []) => {
+  try { validateToolSuccess(tool, output); } catch { throw new InvalidResponse(); }
+  return asOutput(output, requestId, notes);
+};
+const usageNotes = (output: unknown): string[] => {
+  const hint = output && typeof output === "object" ? usageHints.get(output) : undefined;
+  return hint ? [usageNoteForUser(hint)] : [];
+};
+const asError = (error: unknown, requestId: string, tool?: string) => {
   let detail: Record<string, unknown>;
-  if (error instanceof FeedbackFailure) {
+  if (error instanceof AccountStatusUnavailable) detail = { code: "ACCOUNT_STATUS_UNAVAILABLE", nextAction: "review_access",
+    retryable: false, accountUrl: DEVELOPER_ACCOUNT_URL };
+  else if (error instanceof HistoryInputError) detail = { code: error.code, nextAction: "check_input", retryable: false };
+  else if (error instanceof ApiFailure && error.detail.batch) detail = { ...batchRefusalGuidance(error.detail.batch).error };
+  else if (error instanceof ApiFailure && error.detail.code) {
+    const [, nextAction] = HISTORY_ERRORS[error.detail.code];
+    detail = { code: error.detail.code, nextAction, retryable: false,
+      ...(error.detail.code === "RESEARCH_NOT_INCLUDED" ? { upgradeUrl: DEVELOPER_UPGRADE_URL } : {}) };
+  } else if (error instanceof FeedbackFailure) {
     const retryable = ["FEEDBACK_RATE_LIMITED", "FEEDBACK_UNAVAILABLE"].includes(error.code);
     const nextAction = ["NO_KEY", "BAD_KEY"].includes(error.code) ? "reconnect"
       : ["FEEDBACK_INVALID", "FEEDBACK_SENSITIVE"].includes(error.code) ? "check_input" : retryable ? "wait" : "report_issue";
@@ -559,7 +642,7 @@ const asError = (error: unknown, requestId: string) => {
     const [code, nextAction, retryable] = choices[error.status] ?? ["UPSTREAM_ERROR", "report_issue", false];
     detail = { code, nextAction, retryable };
   } else detail = { code: "REQUEST_FAILED", nextAction: "wait", retryable: true };
-  return { content: [{ type: "text" as const, text: describeApiError(error) }], isError: true,
+  return { content: [{ type: "text" as const, text: describeApiError(error, tool) }], isError: true,
     structuredContent: { error: detail, requestId } };
 };
 const readAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true };
@@ -580,8 +663,8 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
   const keys = new PublicKeyCache(() => api("/api/index/v1/pubkey"));
   const read = async (tool: ReadToolName, path: ApiPath, params: Record<string, string>) => {
     const requestId = crypto.randomUUID();
-    try { return asResult(tool, await api(path, params), requestId); }
-    catch (error) { return asError(error, requestId); }
+    try { const output = await api(path, params); return asResult(tool, output, requestId, usageNotes(output)); }
+    catch (error) { return asError(error, requestId, tool); }
   };
 
   server.registerTool("get_index_price", {
@@ -592,7 +675,7 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
 
   server.registerTool("get_index_batch", {
     title: "Get Pulse Verity Index Batch",
-    description: "Read up to 100 crypto symbols in one /api/index/v1/batch request. Returns observations with individually signed successful rows and per-symbol errors for unavailable rows. Your API tier may allow fewer symbols. Verify each successful row with verify_print and require recordValid=true before trusting its quality fields. Surrounding batch metadata is unsigned. No automatic retries. Needs a developer key (PULSE_API_KEY) or the hosted server.",
+    description: "Read up to 100 crypto symbols in one /api/index/v1/batch request. Returns observations with individually signed successful rows and per-symbol errors for unavailable rows. Your plan may allow fewer symbols per request: get_account_status shows batchMaxSymbols, and a larger request is refused with code TOO_MANY_SYMBOLS, batchLimit and requested, so split it. Verify each successful row with verify_print and require recordValid=true before trusting its quality fields. Surrounding batch metadata is unsigned. No automatic retries. Needs a developer key (PULSE_API_KEY) or the hosted server.",
     inputSchema: { symbols: z.array(SymbolSchema).min(1).max(100) }, outputSchema: toolOutputShape("get_index_batch"), annotations: readAnnotations
   }, ({ symbols }) => read("get_index_batch", "/api/index/v1/batch", { symbols: [...new Set(symbols.map((symbol) => symbol.toUpperCase()))].join(",") }));
 
@@ -609,17 +692,89 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
     limit: String(limit), offset: String(offset), ...(band ? { band } : {}), ...(status ? { status } : {})
   }));
 
-  server.registerTool("get_settlement_print", {
+  const RECORDED_PRINT_DESCRIPTION = "Get the recorded signed index print nearest a requested time from /api/index/v1/print. Accepts ISO-8601 or epoch milliseconds. Check deltaMs: it is the distance between your requested time and the sampled print. Sampling and retention are bounded; a recorded print need not equal a separate live read. Preserve the whole print, including priceText, kid and v2, for verify_print. Require recordValid=true before trusting quality fields. Request-envelope fields such as deltaMs are unsigned. Needs a developer key (PULSE_API_KEY) or the hosted server.";
+  const recordedPrintInput = {
+    symbol: SymbolSchema,
+    at: SafeText(40).refine((value) => {
+      const time = /^\d{10,}$/.test(value) ? Number(value) : Date.parse(value);
+      return Number.isFinite(time) && !Number.isNaN(new Date(time).getTime());
+    }, "Expected ISO-8601 or epoch milliseconds")
+  };
+  const recordedPrint = ({ symbol, at }: { symbol: string; at: string }) =>
+    read("get_recorded_print", "/api/index/v1/print", { symbol, at });
+  server.registerTool("get_recorded_print", {
     title: "Get Recorded Print",
-    description: "Get the recorded signed index print nearest a requested time from /api/index/v1/print. Accepts ISO-8601 or epoch milliseconds. Check deltaMs: it is the distance between your requested time and the sampled print. Sampling and retention are bounded; a recorded print need not equal a separate live read. Preserve the whole print, including priceText, kid and v2, for verify_print. Require recordValid=true before trusting quality fields. Request-envelope fields such as deltaMs are unsigned. Needs a developer key (PULSE_API_KEY) or the hosted server.",
+    description: RECORDED_PRINT_DESCRIPTION,
+    inputSchema: recordedPrintInput, outputSchema: toolOutputShape("get_recorded_print"), annotations: { ...readAnnotations, idempotentHint: true }
+  }, recordedPrint);
+  // The earlier name, kept so existing prompts and integrations keep working.
+  server.registerTool("get_settlement_print", {
+    title: "Get Recorded Print (earlier name)",
+    description: "The earlier name of get_recorded_print, kept so existing integrations keep working; prefer get_recorded_print. Same input, output and behaviour. " + RECORDED_PRINT_DESCRIPTION,
+    inputSchema: recordedPrintInput, outputSchema: toolOutputShape("get_recorded_print"), annotations: { ...readAnnotations, idempotentHint: true }
+  }, recordedPrint);
+
+  server.registerTool("get_index_history", {
+    title: "Get Pulse Verity Index History",
+    description: "Read one page of index history for a crypto symbol from /api/index/v1/history: candles (open, high, low, close per interval), summary metrics, pagination and, for dataset=verified, verifiedObservations. dataset=verified (default) is built from prints Pulse calculated and signed live; dataset=reconstructed is rebuilt history, not signed at the historical time, served at interval 1h or 1d. Candles, metrics and surrounding metadata are unsigned. Each verifiedObservations row carries symbol, price (the exact signed text), at, grade, signature and kid; pass those fields to verify_print to check a row, which authenticates its price fields only (history rows carry no v2 block). The account's plan sets how far back history reaches: when the request started earlier, rangeClamped is true and from is where the page begins. Pages hold at most limit observations (1 to " + HISTORY_MAX_ROWS + ", default 200); for the next page pass pagination.nextCursor as cursor with the same symbol, dataset and interval. from and to are ISO-8601 times; the default window is the 30 days before to. Pass assetId when a symbol identifies more than one asset. Needs a developer key (PULSE_API_KEY) or the hosted server.",
     inputSchema: {
       symbol: SymbolSchema,
-      at: SafeText(40).refine((value) => {
-        const time = /^\d{10,}$/.test(value) ? Number(value) : Date.parse(value);
-        return Number.isFinite(time) && !Number.isNaN(new Date(time).getTime());
-      }, "Expected ISO-8601 or epoch milliseconds")
-    }, outputSchema: toolOutputShape("get_settlement_print"), annotations: { ...readAnnotations, idempotentHint: true }
-  }, ({ symbol, at }) => read("get_settlement_print", "/api/index/v1/print", { symbol, at }));
+      dataset: z.enum(["verified", "reconstructed"]).default("verified"),
+      interval: z.enum(["1m", "5m", "1h", "1d"]).default("1h"),
+      from: IsoTimeSchema.optional().describe("Start of the window, ISO-8601"),
+      to: IsoTimeSchema.optional().describe("End of the window, ISO-8601; defaults to now"),
+      limit: z.number().int().min(1).max(HISTORY_MAX_ROWS).default(200),
+      cursor: z.string().min(1).max(2048).regex(/^[A-Za-z0-9_-]+$/).optional().describe("pagination.nextCursor from the previous page"),
+      assetId: z.string().regex(/^(?:native|contract):[A-Za-z0-9._~-]{1,64}:[A-Za-z0-9._~-]{1,128}$/).optional()
+        .describe("Canonical asset identity, only when a symbol identifies more than one asset")
+    }, outputSchema: { ...historySchema.partial().shape, requestId: requestIdSchema, error: errorSchema.optional() },
+    annotations: { ...readAnnotations, idempotentHint: true }
+  }, async ({ symbol, dataset, interval, from, to, limit, cursor, assetId }) => {
+    const requestId = crypto.randomUUID();
+    try {
+      // Refused here, before the network, with the package's own words.
+      if (dataset === "reconstructed" && (interval === "1m" || interval === "5m")) throw new HistoryInputError("BAD_INTERVAL");
+      const fromIso = from === undefined ? undefined : new Date(from).toISOString();
+      const toIso = to === undefined ? undefined : new Date(to).toISOString();
+      if (fromIso && toIso && Date.parse(fromIso) >= Date.parse(toIso)) throw new HistoryInputError("BAD_RANGE");
+      const output = await api("/api/index/v1/history", {
+        symbol: symbol.toUpperCase(), dataset, interval, limit: String(limit),
+        ...(fromIso ? { from: fromIso } : {}), ...(toIso ? { to: toIso } : {}),
+        ...(cursor ? { cursor } : {}), ...(assetId ? { assetId } : {})
+      });
+      const parsed = historySchema.safeParse(output);
+      if (!parsed.success) throw new InvalidResponse();
+      const notes: string[] = [];
+      if (parsed.data.rangeClamped) {
+        const start = safeIsoTimestamp(parsed.data.from);
+        notes.push("Note for the user: the requested window started earlier than the history this request can read "
+          + "(the account plan's history window, or where the signed archive begins), so this page "
+          + (start ? "starts at " + start + " (UTC)." : "starts later than requested."));
+      }
+      return asOutput(parsed.data, requestId, [...notes, ...usageNotes(output)]);
+    } catch (error) { return asError(error, requestId, "get_index_history"); }
+  });
+
+  server.registerTool("get_account_status", {
+    title: "Get Pulse Verity Account Status",
+    description: "Read this developer key's Pulse Verity plan and usage from /api/index/v1/account: plan, used (calls counted this UTC month), limit, remaining, resetAt, perMinute, batchMaxSymbols, capacityAction and upgradeUrl (the plans page). The monthly allowance is account-wide: every key and connected app on the account shares it; perMinute applies to each key. This call does not count toward the allowance. The key itself is never returned. Needs a developer key (PULSE_API_KEY) or the hosted server.",
+    inputSchema: {},
+    outputSchema: { ...accountStatusSchema.partial().shape, requestId: requestIdSchema, error: errorSchema.optional() },
+    annotations: { ...readAnnotations, idempotentHint: true }
+  }, async () => {
+    const requestId = crypto.randomUUID();
+    try {
+      let output: Record<string, unknown>;
+      try { output = await api("/api/index/v1/account"); }
+      catch (error) { throw error instanceof ApiFailure && error.status === 404 ? new AccountStatusUnavailable() : error; }
+      // Only the named fields leave this function; the plans link is the package's own.
+      const parsed = accountStatusSchema.extend({ upgradeUrl: z.unknown().optional() }).safeParse(output);
+      if (!parsed.success) throw new InvalidResponse();
+      const status = { ...parsed.data, upgradeUrl: DEVELOPER_UPGRADE_URL };
+      const usage = usageWarning(status.used, status.limit, status.resetAt);
+      return asOutput(status, requestId, usage ? [usageNoteForUser(usage)] : []);
+    } catch (error) { return asError(error, requestId, "get_account_status"); }
+  });
 
   server.registerTool("verify_print", {
     title: "Verify a Signed Print",

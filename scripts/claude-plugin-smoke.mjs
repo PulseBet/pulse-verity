@@ -40,14 +40,15 @@ try {
   assert.equal(client.getServerVersion()?.version, manifest.version);
   const { tools } = await client.listTools();
   assert.deepEqual(tools.map(({ name }) => name).sort(), [
-    "get_index_batch", "get_index_price", "get_settlement_print", "list_index_assets", "submit_verity_feedback", "verify_print"
+    "get_account_status", "get_index_batch", "get_index_history", "get_index_price", "get_recorded_print", "get_settlement_print",
+    "list_index_assets", "submit_verity_feedback", "verify_print"
   ]);
   assert(tools.filter(({ name }) => name !== "submit_verity_feedback").every(({ annotations }) => annotations?.readOnlyHint === true));
   assert.equal(tools.find(({ name }) => name === "submit_verity_feedback").annotations.readOnlyHint, false);
   const missingKey = await client.callTool({ name: "get_index_batch", arguments: { symbols: ["BTC", "ETH"] } });
   assert.equal(missingKey.isError, true);
   assert.match(JSON.stringify(missingKey), /developer key/);
-  console.log("PASS: package exposes five data tools and private feedback, and handles missing key");
+  console.log("PASS: package exposes its read-only tools and private feedback, and handles missing key");
   if (live) {
     const structured = (result) => result.structuredContent ?? JSON.parse(result.content.find(({ type }) => type === "text").text);
     const result = await client.callTool({ name: "get_index_price", arguments: { symbol: "BTC" } });

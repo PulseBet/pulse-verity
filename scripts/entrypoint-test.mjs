@@ -10,7 +10,8 @@ const entryUrl = new URL("../dist/index.js", import.meta.url);
 const entry = fileURLToPath(entryUrl);
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url))).version;
 const env = { ...process.env, PULSE_API_KEY: "" };
-const expectedTools = ["get_index_price", "get_index_batch", "list_index_assets", "get_settlement_print", "verify_print", "submit_verity_feedback"].sort();
+const expectedTools = ["get_index_price", "get_index_batch", "list_index_assets", "get_recorded_print", "get_settlement_print",
+  "get_index_history", "get_account_status", "verify_print", "submit_verity_feedback"].sort();
 
 async function handshake(path) {
   return new Promise((resolve, reject) => {
@@ -56,7 +57,7 @@ async function handshake(path) {
   });
 }
 
-test("direct entry initializes and lists six tools without a key", () => handshake(entry));
+test("direct entry initializes and lists nine tools without a key", () => handshake(entry));
 
 test("npm-style executable symlink initializes without a key", async () => {
   const directory = mkdtempSync(join(tmpdir(), "pulse-verity-entrypoint-"));
