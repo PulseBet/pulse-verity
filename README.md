@@ -1,7 +1,13 @@
 # Pulse Verity Index
 
-`pulse-verity` connects an AI agent to the **Pulse Verity Index**: signed,
-verifiable crypto index prices through the Model Context Protocol (MCP).
+**Signed crypto prices built for AI agents.** `pulse-verity` connects an AI agent
+to the **Pulse Verity Index**: signed, verifiable crypto index prices through the
+Model Context Protocol (MCP).
+
+Listed in the [GitHub MCP Registry](https://github.com/mcp/PulseBet/pulse-verity)
+and the official MCP Registry as `io.github.PulseBet/pulse-verity`, with one-click
+install from the GitHub listing. A listing is not an endorsement by GitHub or the
+registry.
 
 For workflow and framework setup, see the [integration examples](integrations/):
 Vercel AI SDK, n8n, LangChain/LangGraph, Google ADK, CrewAI, Dify, Flowise and Langflow.
@@ -16,7 +22,7 @@ It exposes five read-only data tools and one private feedback tool:
 | Tool | Purpose |
 |---|---|
 | `get_index_price(symbol)` | Return the current signed index value. |
-| `get_index_batch(symbols)` | Read 1–100 symbols with signed successful rows and per-symbol errors. |
+| `get_index_batch(symbols)` | Read up to 100 symbols per request (your plan may allow fewer) with signed successful rows and per-symbol errors. |
 | `list_index_assets(limit, offset, band?, status?)` | Discover one catalog page with coverage and measured cadence. |
 | `get_settlement_print(symbol, at)` | Return the recorded signed print nearest a moment. |
 | `verify_print(print)` | Verify a price and its signed quality fields locally with the published public key. |
