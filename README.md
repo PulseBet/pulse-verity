@@ -109,10 +109,17 @@ Pulse signed live) or `"reconstructed"` (rebuilt history, not signed at the
 historical time, at `interval` `1h` or `1d`). Candles and metrics are unsigned
 summaries. Each `verifiedObservations` row carries `symbol`, `price` (the exact
 signed text), `at`, `grade`, `signature` and `kid`, which `verify_print` checks
-as a price-only print. How far back history reaches depends on your plan: when
-a request starts earlier, `rangeClamped` is `true` and `from` shows where the
-page begins. Pages hold up to 1000 observations; pass `pagination.nextCursor`
-as `cursor` for the next page.
+as a price-only print. A `kid` of `null` can be passed as it is or left out; a
+row whose `signature` or `grade` is `null` cannot be verified. How far back
+history reaches depends on your plan: when a request starts earlier,
+`rangeClamped` is `true` and `from` shows where the page begins. `limit` (1 to
+1000, default 200) bounds the rows on one page. For `dataset: "verified"` at
+`interval` `1h` or `1d` it is at most 250, because a page there can count hours
+and each hour can carry up to four signed prints (open, high, low and close).
+Pass `pagination.nextCursor` as `cursor` for the next page. When a symbol
+identifies more than one asset, pass `assetId` as the server writes it:
+`native:<namespace>:<id>` or `contract:<network>:<address>`, for example
+`contract:eip155:1:0x...`.
 
 Only the feedback tool writes a report. It requires a developer key and an enabled
 feedback service; it cannot trade, transfer funds or change prices. This package

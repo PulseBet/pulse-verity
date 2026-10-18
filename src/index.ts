@@ -10,7 +10,8 @@ import { readQuotaDetails, quotaErrorGuidance, readKeyRequiredDetails, safeDaily
   readBatchRefusal, batchRefusalGuidance, parseUsageHeader, usageWarning, usageNoteForUser, safeIsoTimestamp,
   USAGE_HEADER, DEVELOPER_UPGRADE_URL, DEVELOPER_ACCOUNT_URL } from "./quotaError.js";
 import type { QuotaDetails, KeyRequiredDetails, BatchRefusalDetails, UsageHint } from "./quotaError.js";
-import { toolOutputShape, validateToolSuccess, errorSchema, requestIdSchema, accountStatusSchema, historySchema, HISTORY_MAX_ROWS } from "./mcpContracts.js";
+import { toolOutputShape, validateToolSuccess, errorSchema, requestIdSchema, accountStatusSchema, historySchema, historyWireSchema,
+  assetIdSchema, HISTORY_MAX_ROWS, HISTORY_SIGNED_HOURLY_MAX_ROWS, HISTORY_DATASET_LABELS, HISTORY_SOURCE_CLASSES, METHODOLOGY_VERSION } from "./mcpContracts.js";
 import type { ReadToolName } from "./mcpContracts.js";
 import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, containsFeedbackTranscript, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
 import type { FeedbackInput } from "./feedbackContract.js";
@@ -132,7 +133,7 @@ const PrintFields = {
   at: TimestampSchema.describe("Timestamp from the print, unchanged"),
   grade: SafeText(20),
   signature: z.string().length(88).regex(/^[A-Za-z0-9+/]{86}==$/).describe("ECDSA P-256 signature in base64"),
-  kid: KidSchema.optional().describe("Signing key identifier, when provided by the API"),
+  kid: KidSchema.nullable().optional().describe("Signing key identifier, when provided by the API; null counts as absent"),
   sig: z.literal(INDEX_SIG_VERSION).optional(),
   kind: z.literal("daily-close").optional().describe("Selects the daily-close record format; this selector is not itself signed"),
   assetId: SafeText(160).nullable().optional(),
@@ -252,6 +253,9 @@ export function verifyRecordV2(input: unknown, publicKeyPem: string): PrintV2Ver
   }
 }
 
+/** The response body passed MAX_RESPONSE_BYTES. Repeating the same request cannot help. */
+class ResponseTooLarge extends Error { constructor() { super("API response exceeded its size limit"); } }
+
 // API origin and paths are pinned. Redirects never receive the developer key.
 // Errors retain only allowlisted quota metadata, never raw upstream text or links.
 export class ApiFailure extends Error {
@@ -266,7 +270,8 @@ export interface FailureDetail { batch?: BatchRefusalDetails; code?: HistoryErro
 const HISTORY_ERRORS = {
   BAD_QUERY: [400, "check_input", "Error: the history request was not accepted. Pass symbol, dataset (verified or reconstructed) and interval (1m, 5m, 1h or 1d)."],
   BAD_INTERVAL: [400, "check_input", "Error: reconstructed history is served at interval 1h or 1d."],
-  BAD_LIMIT: [400, "check_input", "Error: limit must be a whole number from 1 to " + HISTORY_MAX_ROWS + "."],
+  BAD_LIMIT: [400, "check_input", "Error: limit must be a whole number from 1 to " + HISTORY_MAX_ROWS + ", and at most "
+    + HISTORY_SIGNED_HOURLY_MAX_ROWS + " for dataset=verified at interval 1h or 1d, where a page can count hours and each hour can carry up to four signed prints."],
   BAD_RANGE: [400, "check_input", "Error: from and to must be valid ISO-8601 times, with from before to."],
   BAD_CURSOR_OR_IDENTITY: [400, "check_input", "Error: the cursor or assetId does not match this query. Repeat the same symbol, dataset and interval with the previous page's nextCursor, or start again without a cursor."],
   RESEARCH_NOT_INCLUDED: [403, "review_access", "Error: this account's plan does not include history. Plans and what each includes: " + DEVELOPER_UPGRADE_URL],
@@ -283,11 +288,14 @@ function historyErrorCode(value: unknown, status: number): HistoryErrorCode | un
 
 /** The account endpoint answered 404: this server does not offer it yet. */
 class AccountStatusUnavailable extends Error {}
+export const HISTORY_TOO_LARGE_TEXT =
+  "Error: this history page was larger than this package reads in one response. Repeat the request with a smaller limit; "
+  + "pagination.nextCursor then continues from where the smaller page ends.";
 export const ACCOUNT_STATUS_UNAVAILABLE_TEXT =
   "Error: account status is not available from this Pulse Verity server yet. The account's plan, usage and limits are shown at " + DEVELOPER_ACCOUNT_URL;
 /** A history request this package refuses before any network call. */
 class HistoryInputError extends Error {
-  constructor(readonly code: "BAD_INTERVAL" | "BAD_RANGE") { super(code); }
+  constructor(readonly code: "BAD_INTERVAL" | "BAD_RANGE" | "BAD_LIMIT") { super(code); }
 }
 
 /** Usage hints ride beside a response body, never inside it: structured
@@ -339,6 +347,7 @@ function sanitizeResponse(value: unknown, apiKey: string, depth = 0): unknown {
 export function describeApiError(error: unknown, tool?: string): string {
   if (error instanceof AccountStatusUnavailable) return ACCOUNT_STATUS_UNAVAILABLE_TEXT;
   if (error instanceof HistoryInputError) return HISTORY_ERRORS[error.code][2];
+  if (error instanceof ResponseTooLarge && tool === "get_index_history") return HISTORY_TOO_LARGE_TEXT;
   if (error instanceof ApiFailure && error.detail.batch) return batchRefusalGuidance(error.detail.batch).text;
   if (error instanceof ApiFailure && error.detail.code) return HISTORY_ERRORS[error.detail.code][2];
   if (error instanceof ApiFailure && error.status === 404 && tool === "get_index_history") return "Error: history for this symbol is unavailable.";
@@ -460,7 +469,7 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
     const declaredLength = Number(response.headers.get("content-length"));
     if (declaredLength > MAX_RESPONSE_BYTES) {
       await response.body?.cancel();
-      throw new Error("API response exceeded its size limit");
+      throw new ResponseTooLarge();
     }
     if (!response.body) throw new Error("Empty API response");
     const reader = response.body.getReader();
@@ -471,7 +480,7 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
         const { done, value } = await reader.read();
         if (done) break;
         length += value.byteLength;
-        if (length > MAX_RESPONSE_BYTES) throw new Error("API response exceeded its size limit");
+        if (length > MAX_RESPONSE_BYTES) throw new ResponseTooLarge();
         chunks.push(value);
       }
     } catch (error) {
@@ -562,7 +571,7 @@ export class PublicKeyCache {
     const print = PrintSchema.parse(input);
     canonicalPricePayload(print); // reject an inconsistent envelope before any request
     const match = (ring: KeyRing): { valid: boolean; verifiedWithKid: string | null } => {
-      const candidates = print.kid !== undefined
+      const candidates = print.kid != null
         ? [...ring.keys].filter(([kid]) => kid === print.kid) : [...ring.keys];
       for (const [kid, pem] of candidates) {
         if (verifySignature(print, pem)) return { valid: true, verifiedWithKid: kid || null };
@@ -616,6 +625,7 @@ const asError = (error: unknown, requestId: string, tool?: string) => {
   if (error instanceof AccountStatusUnavailable) detail = { code: "ACCOUNT_STATUS_UNAVAILABLE", nextAction: "review_access",
     retryable: false, accountUrl: DEVELOPER_ACCOUNT_URL };
   else if (error instanceof HistoryInputError) detail = { code: error.code, nextAction: "check_input", retryable: false };
+  else if (error instanceof ResponseTooLarge && tool === "get_index_history") detail = { code: "RESPONSE_TOO_LARGE", nextAction: "check_input", retryable: false };
   else if (error instanceof ApiFailure && error.detail.batch) detail = { ...batchRefusalGuidance(error.detail.batch).error };
   else if (error instanceof ApiFailure && error.detail.code) {
     const [, nextAction] = HISTORY_ERRORS[error.detail.code];
@@ -646,6 +656,22 @@ const asError = (error: unknown, requestId: string, tool?: string) => {
     structuredContent: { error: detail, requestId } };
 };
 const readAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true };
+
+/** The package's own words for a history page; the server's note is never relayed. */
+export const HISTORY_NOTES = {
+  verified: "Built from prints Pulse calculated and signed live. verify_print checks a verifiedObservations row's price fields; candles, metrics and the surrounding metadata are unsigned summaries.",
+  reconstructed: "Rebuilt under the stated methodology and not signed live at the historical time. Coverage and confidence are reported in provenance; candles and metrics are unsigned summaries.",
+  reconstructedEmpty: "No rebuilt history is loaded for this asset at this interval. Signed history (dataset=verified) covers what Pulse has recorded live."
+} as const;
+type WireProvenance = NonNullable<z.infer<typeof historyWireSchema>["provenance"]>;
+/** Known source classes and version-shaped methodology labels only; counts and spreads are numbers. */
+function historyProvenance({ sourceClass, methodologyVersions, ...measured }: WireProvenance) {
+  return {
+    ...((HISTORY_SOURCE_CLASSES as readonly string[]).includes(sourceClass ?? "") ? { sourceClass } : {}),
+    ...(methodologyVersions ? { methodologyVersions: methodologyVersions.filter((version) => METHODOLOGY_VERSION.test(version)) } : {}),
+    ...measured
+  };
+}
 
 export interface IndexServerOptions {
   /** Overrides key detection; otherwise read from a createApiClient client, or PULSE_API_KEY. */
@@ -716,17 +742,18 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
 
   server.registerTool("get_index_history", {
     title: "Get Pulse Verity Index History",
-    description: "Read one page of index history for a crypto symbol from /api/index/v1/history: candles (open, high, low, close per interval), summary metrics, pagination and, for dataset=verified, verifiedObservations. dataset=verified (default) is built from prints Pulse calculated and signed live; dataset=reconstructed is rebuilt history, not signed at the historical time, served at interval 1h or 1d. Candles, metrics and surrounding metadata are unsigned. Each verifiedObservations row carries symbol, price (the exact signed text), at, grade, signature and kid; pass those fields to verify_print to check a row, which authenticates its price fields only (history rows carry no v2 block). The account's plan sets how far back history reaches: when the request started earlier, rangeClamped is true and from is where the page begins. Pages hold at most limit observations (1 to " + HISTORY_MAX_ROWS + ", default 200); for the next page pass pagination.nextCursor as cursor with the same symbol, dataset and interval. from and to are ISO-8601 times; the default window is the 30 days before to. Pass assetId when a symbol identifies more than one asset. Needs a developer key (PULSE_API_KEY) or the hosted server.",
+    description: "Read one page of index history for a crypto symbol from /api/index/v1/history: candles (open, high, low, close per interval), summary metrics, pagination and, for dataset=verified, verifiedObservations. dataset=verified (default) is built from prints Pulse calculated and signed live; dataset=reconstructed is rebuilt history, not signed at the historical time, served at interval 1h or 1d. Candles, metrics and surrounding metadata are unsigned. Each verifiedObservations row carries symbol, price (the exact signed text), at, grade, signature and kid; pass those fields to verify_print to check a row, which authenticates its price fields only (history rows carry no v2 block). A null kid can be passed as it is or left out; a row whose signature or grade is null cannot be verified. The account's plan sets how far back history reaches: when the request started earlier, rangeClamped is true and from is where the page begins. limit (1 to " + HISTORY_MAX_ROWS + ", default 200) bounds the rows on one page. For dataset=verified at interval 1h or 1d it is at most " + HISTORY_SIGNED_HOURLY_MAX_ROWS + ": a page there can count hours, and each hour can carry up to four signed prints (open, high, low and close), so verifiedObservations can hold up to four rows per hour. For the next page pass pagination.nextCursor as cursor with the same symbol, dataset and interval. from and to are ISO-8601 times; the default window is the 30 days before to. Pass assetId, written as the server issues it (native:<namespace>:<id>, or contract:<network>:<address> such as contract:eip155:1:0x...), when a symbol identifies more than one asset. Needs a developer key (PULSE_API_KEY) or the hosted server.",
     inputSchema: {
       symbol: SymbolSchema,
       dataset: z.enum(["verified", "reconstructed"]).default("verified"),
       interval: z.enum(["1m", "5m", "1h", "1d"]).default("1h"),
       from: IsoTimeSchema.optional().describe("Start of the window, ISO-8601"),
       to: IsoTimeSchema.optional().describe("End of the window, ISO-8601; defaults to now"),
-      limit: z.number().int().min(1).max(HISTORY_MAX_ROWS).default(200),
+      limit: z.number().int().min(1).max(HISTORY_MAX_ROWS).default(200)
+        .describe("Rows on one page; at most " + HISTORY_SIGNED_HOURLY_MAX_ROWS + " for dataset=verified at interval 1h or 1d"),
       cursor: z.string().min(1).max(2048).regex(/^[A-Za-z0-9_-]+$/).optional().describe("pagination.nextCursor from the previous page"),
-      assetId: z.string().regex(/^(?:native|contract):[A-Za-z0-9._~-]{1,64}:[A-Za-z0-9._~-]{1,128}$/).optional()
-        .describe("Canonical asset identity, only when a symbol identifies more than one asset")
+      assetId: assetIdSchema.optional()
+        .describe("Canonical asset identity as the server issues it, e.g. native:pulse-verity:btc or contract:eip155:1:0x...; only when a symbol identifies more than one asset")
     }, outputSchema: { ...historySchema.partial().shape, requestId: requestIdSchema, error: errorSchema.optional() },
     annotations: { ...readAnnotations, idempotentHint: true }
   }, async ({ symbol, dataset, interval, from, to, limit, cursor, assetId }) => {
@@ -734,6 +761,10 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
     try {
       // Refused here, before the network, with the package's own words.
       if (dataset === "reconstructed" && (interval === "1m" || interval === "5m")) throw new HistoryInputError("BAD_INTERVAL");
+      // A signed hourly page can count hours, each with up to four prints: keep it well under MAX_RESPONSE_BYTES.
+      if (dataset === "verified" && (interval === "1h" || interval === "1d") && limit > HISTORY_SIGNED_HOURLY_MAX_ROWS) {
+        throw new HistoryInputError("BAD_LIMIT");
+      }
       const fromIso = from === undefined ? undefined : new Date(from).toISOString();
       const toIso = to === undefined ? undefined : new Date(to).toISOString();
       if (fromIso && toIso && Date.parse(fromIso) >= Date.parse(toIso)) throw new HistoryInputError("BAD_RANGE");
@@ -742,7 +773,17 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
         ...(fromIso ? { from: fromIso } : {}), ...(toIso ? { to: toIso } : {}),
         ...(cursor ? { cursor } : {}), ...(assetId ? { assetId } : {})
       });
-      const parsed = historySchema.safeParse(output);
+      const wire = historyWireSchema.safeParse(output);
+      // The dataset label is written from the request, so the server must agree about how the page was signed.
+      if (!wire.success || wire.data.contemporaneouslySigned !== (dataset === "verified")) throw new InvalidResponse();
+      // The server's dataset label and note are replaced and its provenance labels allowlisted: no free text is relayed.
+      const { dataset: _label, note: _note, provenance: wireProvenance, ...page } = wire.data;
+      const parsed = historySchema.safeParse({
+        ...page, dataset: HISTORY_DATASET_LABELS[dataset],
+        note: dataset === "verified" ? HISTORY_NOTES.verified
+          : page.pagination.coverage?.availableFrom === null ? HISTORY_NOTES.reconstructedEmpty : HISTORY_NOTES.reconstructed,
+        ...(wireProvenance ? { provenance: historyProvenance(wireProvenance) } : {})
+      });
       if (!parsed.success) throw new InvalidResponse();
       const notes: string[] = [];
       if (parsed.data.rangeClamped) {
@@ -778,7 +819,7 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
 
   server.registerTool("verify_print", {
     title: "Verify a Signed Print",
-    description: "Verify a signed print locally with ECDSA P-256/SHA-256. Legacy valid authenticates only the v1 canonical price fields. Pass the whole print including v2 to authenticate its complete live, archive or daily-close index record; agents using sources, confidence, interval or cadence must require recordValid=true. Live records sign 18 fields; archive records sign 13 without freshness ages, and daily-close records add signed assetId and closeDay. v2.signedFields lists exactly what is authenticated. kind selects the format and is not signed. Added non-null freshness ages invalidate archived verification. verificationScope is full-record only when both signatures and all required fields match, price-only for a valid v1 print without v2, or invalid otherwise. metadataSigned equals recordValid. deltaMs and surrounding metadata remain unsigned. Public keys come from /api/index/v1/pubkey, cached five minutes with refresh at most every 30 seconds. Each supplied kid selects only its exact published key; v1 prints without kid use the bounded ring. No API key is sent to the key endpoint. Invalid verification can mean alteration or a key no longer published. Works without a developer key.",
+    description: "Verify a signed print locally with ECDSA P-256/SHA-256. Legacy valid authenticates only the v1 canonical price fields. Pass the whole print including v2 to authenticate its complete live, archive or daily-close index record; agents using sources, confidence, interval or cadence must require recordValid=true. Live records sign 18 fields; archive records sign 13 without freshness ages, and daily-close records add signed assetId and closeDay. v2.signedFields lists exactly what is authenticated. kind selects the format and is not signed. Added non-null freshness ages invalidate archived verification. verificationScope is full-record only when both signatures and all required fields match, price-only for a valid v1 print without v2, or invalid otherwise. metadataSigned equals recordValid. deltaMs and surrounding metadata remain unsigned. Public keys come from /api/index/v1/pubkey, cached five minutes with refresh at most every 30 seconds. Each supplied kid selects only its exact published key; v1 prints without kid (or with kid null, as some history rows carry) use the bounded ring. No API key is sent to the key endpoint. Invalid verification can mean alteration or a key no longer published. Works without a developer key.",
     inputSchema: PrintFields, outputSchema: toolOutputShape("verify_print"),
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
   }, async (print) => {

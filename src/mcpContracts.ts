@@ -105,27 +105,56 @@ export const accountStatusSchema = z.object({
 });
 
 const nullableFinite = finite.nullable();
+/** No control or line-separator characters: history strings are shown to agents. */
+const safeText = (n: number) => z.string().max(n).regex(/^[^\x00-\x1f\x7f\u0085\u2028\u2029]*$/);
+const NAMESPACE = '[a-z0-9][a-z0-9._-]{0,63}';
+const NATIVE_ID = '[a-z0-9][a-z0-9._-]{0,255}';
+const CAIP2_NETWORK = '[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}';
+const ADDRESS = '[A-Za-z0-9._~:/+=@-]{1,512}';
+/** Canonical asset IDs exactly as the server builds them (verityCatalog.service.ts):
+ * native:<namespace>:<nativeId>, or contract:<CAIP-2 network>:<address>. The
+ * network itself holds a colon (eip155:1), so a contract ID has four parts. */
+export const ASSET_ID_PATTERN = new RegExp('^(?:native:' + NAMESPACE + ':' + NATIVE_ID
+  + '|contract:' + CAIP2_NETWORK + ':' + ADDRESS + ')$');
+export const assetIdSchema = z.string().max(600).regex(ASSET_ID_PATTERN);
 const identity = z.object({
-  assetId: text(240), symbol: text(128).optional(), identityType: z.enum(['native', 'contract']).optional(),
-  namespace: text(80).nullable().optional(), nativeId: text(160).nullable().optional(),
-  network: text(80).nullable().optional(), contractAddress: text(160).nullable().optional()
+  assetId: assetIdSchema, symbol: z.string().regex(/^[A-Z0-9]{1,32}$/).optional(),
+  identityType: z.enum(['native', 'contract']).optional(),
+  namespace: z.string().regex(new RegExp('^' + NAMESPACE + '$')).nullable().optional(),
+  nativeId: z.string().regex(new RegExp('^' + NATIVE_ID + '$')).nullable().optional(),
+  network: z.string().regex(new RegExp('^' + CAIP2_NETWORK + '$')).nullable().optional(),
+  contractAddress: z.string().regex(new RegExp('^' + ADDRESS + '$')).nullable().optional()
 });
 const spread = z.object({ minimum: nullableFinite, average: nullableFinite }).nullable().optional();
 export const HISTORY_MAX_ROWS = 1000;
+/** dataset=verified at interval 1h or 1d can be served from signed hourly rows:
+ * there `limit` counts hours, and each hour carries up to four signed prints
+ * (open, high, low and close). 250 hours keeps a page well under the 1 MiB
+ * response bound; a page holds at most four observations per counted row. */
+export const HISTORY_SIGNED_HOURLY_MAX_ROWS = 250;
+export const HISTORY_MAX_OBSERVATIONS = 4 * HISTORY_MAX_ROWS;
+/** The package's own labels and notes; the server's free text is never relayed. */
+export const HISTORY_DATASET_LABELS = { verified: 'Pulse Verified Index', reconstructed: 'Pulse Reconstructed Index' } as const;
+export const HISTORY_SOURCE_CLASSES = ['Pulse live crypto composite', 'permissible crypto venue history'] as const;
+export const METHODOLOGY_VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const provenance = z.object({
+  sourceClass: z.enum(HISTORY_SOURCE_CLASSES).optional(),
+  methodologyVersions: z.array(z.string().regex(METHODOLOGY_VERSION)).max(20).optional(),
+  signedObservations: count.optional(), totalObservations: count.optional(),
+  coverage: spread, confidence: spread
+});
 /** GET /api/index/v1/history (get_index_history, 1.3.4). Candles and metrics are
  * unsigned summaries. verifiedObservations rows carry the v1 price signature
- * only; a row's price is its exact signed text. */
+ * only; a row's price is its exact signed text. dataset, note and provenance
+ * labels are written or allowlisted by the adapter. */
 export const historySchema = z.object({
   success: z.literal(true),
   symbol: z.string().regex(/^[A-Za-z0-9]{1,20}$/),
   asset: identity.nullable().optional(),
   identityBinding: z.enum(['legacy-symbol-only', 'canonical-asset-id']).optional(),
-  dataset: text(64), contemporaneouslySigned: z.boolean(), note: text(2048).optional(),
-  provenance: z.object({
-    sourceClass: text(128).optional(), methodologyVersions: z.array(text(64)).max(20).optional(),
-    signedObservations: count.optional(), totalObservations: count.optional(),
-    coverage: spread, confidence: spread
-  }).optional(),
+  dataset: z.enum([HISTORY_DATASET_LABELS.verified, HISTORY_DATASET_LABELS.reconstructed]),
+  contemporaneouslySigned: z.boolean(), note: safeText(512).optional(),
+  provenance: provenance.optional(),
   interval: z.enum(['1m', '5m', '1h', '1d']),
   from: timestamp, to: timestamp, rangeClamped: z.boolean(),
   verifiedArchiveSince: timestamp.optional(),
@@ -144,15 +173,23 @@ export const historySchema = z.object({
     observationCount: count, candleCount: count
   }).optional(),
   verifiedObservations: z.array(z.object({
-    assetId: text(240).optional(), symbol: z.string().regex(/^[A-Za-z0-9]{1,20}$/),
+    assetId: assetIdSchema.optional(), symbol: z.string().regex(/^[A-Za-z0-9]{1,20}$/),
     price: z.string().min(1).max(100).regex(/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/),
-    at: timestamp, grade: text(20).nullable(), signature: signature.nullable(), kid: kid.nullable(),
+    at: timestamp, grade: safeText(20).nullable(), signature: signature.nullable(), kid: kid.nullable(),
     identityBinding: z.literal('legacy-symbol-only').optional()
-  })).max(HISTORY_MAX_ROWS).optional(),
+  })).max(HISTORY_MAX_OBSERVATIONS).optional(),
   candles: z.array(z.object({
     at: timestamp, open: finite, high: finite, low: finite, close: finite, observations: count,
     coverage: finite.optional(), confidence: finite.optional()
   })).max(HISTORY_MAX_ROWS)
+});
+/** What the adapter reads from the wire before it writes the labels above:
+ * the free-text fields are bounded here and then replaced or allowlisted. */
+export const historyWireSchema = historySchema.extend({
+  dataset: text(64), note: text(2048).optional(),
+  provenance: provenance.extend({
+    sourceClass: text(128).optional(), methodologyVersions: z.array(text(64)).max(20).optional()
+  }).optional()
 });
 
 /** MCP SDKs require an object root. The declared object admits the bounded
