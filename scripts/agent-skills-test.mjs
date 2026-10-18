@@ -1,6 +1,7 @@
 // Agent guidance surfaces: the cross-agent skill (.agents/skills/pulse-verity),
 // the Cursor rule and the AGENTS.md section, plus the payment gate over every
-// tracked file and the packed package.
+// tracked file and the packed package: pay-per-request (x402) guidance appears
+// only in the cleared surfaces, and says only what is live.
 // Offline: reads repository files and runs `git ls-files` and
 // `npm pack --dry-run` only.
 import assert from "node:assert/strict";
@@ -23,12 +24,14 @@ const AGENTS_START = "<!-- pulse-verity:start -->";
 const AGENTS_END = "<!-- pulse-verity:end -->";
 const THIS_FILE = "scripts/agent-skills-test.mjs";
 
-// PAYMENT GATE (closed). Pay-per-call guidance is held back from this public
-// repository until the release owner clears it for publication. Every file
-// here is public, the Claude plugin is sourced from the repository root, and
-// an npm tarball cannot be withdrawn, so the gate covers all of them. Opening
-// it is a deliberate change to this list, made only when the release owner
-// says so; never relax a pattern to let a file through.
+// PAYMENT GATE (open, bounded). x402 pay-per-request went live in production on
+// 18 Oct 2026 and the release owner cleared short guidance for 1.3.5: the
+// cross-agent skill, the Cursor rule and AGENTS.md may carry it, and the
+// release notes may name it. Every other file stays payment-free, because
+// every file here is public, the Claude plugin is sourced from the repository
+// root, and an npm tarball cannot be withdrawn. Adding a surface is a
+// deliberate change to PAYMENT_SURFACES, made only when the release owner says
+// so; never relax a pattern to let a file through.
 const PAYMENT_TEXT = [
   [/x402/i, "x402"],
   [/\bPAYMENT-(?:SIGNATURE|REQUIRED|RESPONSE)\b/i, "x402 payment header"],
@@ -40,14 +43,43 @@ const PAYMENT_TEXT = [
   [/\bpaid\s+in\s+USDC\b|\b\d+(?:\.\d+)?\s*USDC\b/i, "an amount in USDC"]
 ];
 
-/** Every line of `text` that carries payment guidance, as "label:line: rule". */
-function paymentLines(label, text) {
+/** Every line of `text` that carries payment guidance, as { label, line, rule, text }. */
+function paymentHits(label, text) {
   const hits = [];
   text.split("\n").forEach((line, index) => {
-    for (const [pattern, rule] of PAYMENT_TEXT) if (pattern.test(line)) hits.push(`${label}:${index + 1}: ${rule}: ${line.trim().slice(0, 120)}`);
+    for (const [pattern, rule] of PAYMENT_TEXT) if (pattern.test(line)) hits.push({ label, line: index + 1, rule, text: line });
   });
   return hits;
 }
+
+/** The same hits, as "label:line: rule: text" for assertion messages. */
+function paymentLines(label, text) {
+  return paymentHits(label, text).map(({ line, rule, text: content }) => `${label}:${line}: ${rule}: ${content.trim().slice(0, 120)}`);
+}
+
+// Where payment text may appear: the file, and which of its lines.
+const PAYMENT_SURFACES = new Map([
+  [SKILL, () => true],
+  [CURSOR_RULE, () => true],
+  ["AGENTS.md", () => true],
+  // The GitHub release notes describe the change; only the --notes line may name it.
+  [".github/workflows/publish.yml", (line) => /^\s*--notes "/.test(line)]
+]);
+
+/** Payment hits in `path` that fall outside its cleared lines, as messages. */
+function uncleared(path, text) {
+  const allowed = PAYMENT_SURFACES.get(path);
+  return paymentHits(path, text)
+    .filter((hit) => !allowed || !allowed(hit.text))
+    .map(({ line, rule, text: content }) => `${path}:${line}: ${rule}: ${content.trim().slice(0, 120)}`);
+}
+
+// What is live in production (18 Oct 2026): the x402 routes, networks and amounts.
+const X402_DISCOVERY = "https://mcp.thepulse.markets/api/index/v1/x402";
+const X402_PRICE = `${X402_DISCOVERY}/price?symbol=BTC`;
+const X402_BATCH = `${X402_DISCOVERY}/batch?symbols=BTC,ETH`;
+const X402_URLS = new Set([X402_DISCOVERY, X402_PRICE, X402_BATCH]);
+const X402_AMOUNTS = new Set(["$0.01", "$0.05"]);
 
 // Agent Skills spec (agentskills.io/specification) and the Claude skill rules:
 // only these keys survive a claude.ai or Skills API upload.
@@ -235,22 +267,62 @@ test("the payment gate catches pay-per-call guidance and passes ordinary Verity 
   ]) assert.deepEqual(paymentLines("sample", line), [], `the gate flags ordinary copy: ${line}`);
 });
 
-test("PAYMENT GATE (closed): no file in the repository carries pay-per-call guidance", () => {
+test("the gate's surface rules clear only the listed files and lines", () => {
+  const sample = "Pay per request with x402";
+  for (const path of [SKILL, CURSOR_RULE, "AGENTS.md"]) assert.deepEqual(uncleared(path, sample), [], path);
+  assert.deepEqual(uncleared(".github/workflows/publish.yml", `            --notes "${sample}."`), []);
+  assert.notDeepEqual(uncleared(".github/workflows/publish.yml", `      - run: echo ${sample}`), [], "publish.yml outside --notes");
+  for (const path of ["README.md", REFERENCES[0], `${CLAUDE_PLUGIN_SKILL_DIR}/SKILL.md`, "manifest.json", "server.json", "dist/index.js"]) {
+    assert.notDeepEqual(uncleared(path, sample), [], `${path} must stay payment-free`);
+  }
+});
+
+test("PAYMENT GATE (open, bounded): pay-per-request guidance appears only in the cleared surfaces", () => {
   // The Claude plugin is sourced from the repository root (.claude-plugin/
   // plugin.json sits there), so a plugin install and a directory reviewer's
   // checkout carry every file, not only claude-skills/.
   assert(existsSync(join(root, ".claude-plugin/plugin.json")), "the Claude plugin manifest moved: re-check what its source tree ships");
   const files = repositoryFiles();
   assert(files.includes(SKILL) && files.includes("README.md"), "could not list the repository files");
-  const hits = [];
+  const outside = [];
   for (const path of files) {
     if (path === THIS_FILE) continue; // the gate's own patterns
     const buffer = readFileSync(join(root, path));
-    if (isText(buffer)) hits.push(...paymentLines(path, buffer.toString("utf8")));
+    if (isText(buffer)) outside.push(...uncleared(path, buffer.toString("utf8")));
   }
-  assert.deepEqual(hits, [], "pay-per-call guidance is held back from this public repository until the release owner clears it");
+  assert.deepEqual(outside, [], "pay-per-request guidance belongs only in the skill, the Cursor rule and AGENTS.md");
+  // The gate is open on purpose: each cleared guidance surface carries the guidance.
+  for (const [label, text] of [[SKILL, read(SKILL)], [CURSOR_RULE, read(CURSOR_RULE)], ["AGENTS.md (Pulse Verity section)", markedAgentsSection()]]) {
+    assert.notDeepEqual(paymentHits(label, text), [], `${label} is missing the x402 guidance`);
+  }
   for (const [label, text] of guidanceSurfaces()) {
     assert(!/\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{43,44}\b/.test(text), `${label} carries a wallet or token address`);
+  }
+});
+
+test("x402 guidance names only what is live and keeps the authorisation rule", () => {
+  const notLive = [
+    [/\b(?:polygon|matic|arbitrum|optimism|avalanche|sepolia|testnet|ethereum mainnet)\b/i, "a network that is not offered"],
+    [/top[- ]?ups?\b/i, "top-ups are not live"],
+    [/\bcredits?\b/i, "never call prepaid packs \"credits\""],
+    [/transferWithAuthorization|EIP-3009|\bpayTo\b|PAYMENT-(?:SIGNATURE|REQUIRED|RESPONSE)|X-PAYMENT|facilitator/i, "protocol internals belong to the x402 client"]
+  ];
+  for (const [label, text] of [[SKILL, read(SKILL)], [CURSOR_RULE, read(CURSOR_RULE)], ["AGENTS.md (Pulse Verity section)", markedAgentsSection()]]) {
+    const flat = text.replace(/\s+/g, " "); // wrapped lines read as one
+    assert(text.includes(X402_PRICE), `${label} misses the price route`);
+    assert(new RegExp(`${X402_DISCOVERY.replaceAll(".", "\\.")}(?![/?\\w])`).test(text), `${label} misses the discovery URL`);
+    for (const [url] of text.matchAll(/https?:\/\/[^\s`)<>"']*x402[^\s`)<>"']*/g)) assert(X402_URLS.has(url), `${label} names an unknown x402 URL: ${url}`);
+    for (const word of ["USDC", "Base", "Solana", "$0.01", "$0.05", "up to 100 symbols"]) assert(flat.includes(word), `${label} misses ${word}`);
+    for (const [amount] of text.matchAll(/\$\d[\d,]*(?:\.\d+)?/g)) assert(X402_AMOUNTS.has(amount), `${label} names an amount that is not live: ${amount}`);
+    assert(/only with the person's authorisation and within the spending limit they set/i.test(flat), `${label} misses the authorisation and spending-limit rule`);
+    assert(/stop and ask/i.test(flat), `${label} misses the amount-mismatch stop`);
+    assert(/never ask for a wallet's private key or recovery phrase/i.test(flat), `${label} misses the wallet-secret rule`);
+    assert(/\bverify_print\b/.test(text), `${label} must send paid prints to verify_print`);
+    const failures = [];
+    text.split("\n").forEach((line, index) => {
+      for (const [pattern, rule] of notLive) if (pattern.test(line)) failures.push(`${label}:${index + 1}: ${rule}: ${line.trim()}`);
+    });
+    assert.deepEqual(failures, []);
   }
 });
 
@@ -314,8 +386,9 @@ test("plugin roots stay isolated from the cross-agent skill and rule", () => {
   assert.deepEqual(readdirSync(join(root, "claude-skills")), ["pulse-verity-price-check"]);
 });
 
-test("the npm package ships the skill but not repository-only guidance", () => {
-  assert(pkg.files.includes(`${SKILL_DIR}/`));
+test("the npm package ships the skill with its x402 section, and no other payment text", () => {
+  assert(pkg.files.includes(`${SKILL_DIR}/`), "package.json files must ship the cross-agent skill");
+  for (const entry of pkg.files) assert(!/^(?:\.cursor|docs|AGENTS\.md|claude-skills)/.test(entry), `package.json files must not ship ${entry}`);
   const result = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8", timeout: 60_000 });
   assert.equal(result.error, undefined, result.error?.message);
   assert.equal(result.status, 0, result.stderr);
@@ -326,12 +399,14 @@ test("the npm package ships the skill but not repository-only guidance", () => {
   for (const path of [SKILL, ...REFERENCES]) assert(files.includes(path), `package is missing ${path}`);
   const skillFiles = files.filter((path) => path.startsWith(`${SKILL_DIR}/`)).sort();
   assert.deepEqual(skillFiles, [SKILL, ...REFERENCES].sort(), "the package ships exactly the skill and its references");
-  const hits = [];
+  const outside = [];
   for (const path of files) {
     assert(!path.startsWith(".cursor/") && !path.startsWith("docs/") && path !== "AGENTS.md", `package must not ship ${path}`);
     // A published tarball cannot be withdrawn: the payment gate covers it too.
+    // Only the skill's SKILL.md may carry the x402 section.
     const buffer = readFileSync(join(root, path));
-    if (isText(buffer)) hits.push(...paymentLines(`package:${path}`, buffer.toString("utf8")));
+    if (isText(buffer)) outside.push(...(path === SKILL ? [] : paymentLines(`package:${path}`, buffer.toString("utf8"))));
   }
-  assert.deepEqual(hits, []);
+  assert.deepEqual(outside, []);
+  assert.notDeepEqual(paymentHits(SKILL, read(SKILL)), [], "the packed skill carries the x402 section");
 });

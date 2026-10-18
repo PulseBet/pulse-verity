@@ -26,7 +26,7 @@ available, run this command in your terminal. It registers the pinned stdio
 server; `npx` downloads and starts the package when your client connects.
 
 ```bash
-claude mcp add pulse-verity -- npx -y pulse-verity@1.3.4
+claude mcp add pulse-verity -- npx -y pulse-verity@1.3.5
 ```
 
 Start a new Claude Code session. Leave `PULSE_API_KEY` unset for this keyless
@@ -161,7 +161,7 @@ configuration; never share it in chat.
 ```bash
 claude mcp add pulse-verity \
   --env PULSE_API_KEY=pidx_your_key_here \
-  -- npx -y pulse-verity@1.3.4
+  -- npx -y pulse-verity@1.3.5
 ```
 
 For any stdio MCP client:
@@ -171,7 +171,7 @@ For any stdio MCP client:
   "mcpServers": {
     "pulse-verity": {
       "command": "npx",
-      "args": ["-y", "pulse-verity@1.3.4"],
+      "args": ["-y", "pulse-verity@1.3.5"],
       "env": { "PULSE_API_KEY": "pidx_your_key_here" }
     }
   }
@@ -193,7 +193,7 @@ directory approval, publication or a successful authenticated connection.
 ### Cursor marketplace package
 
 This repository includes `.cursor-plugin/plugin.json` and `mcp.json` for
-Cursor's plugin loader. The plugin is pinned to `pulse-verity@1.3.4`
+Cursor's plugin loader. The plugin is pinned to `pulse-verity@1.3.5`
 package with `npx`; Node.js 18 or newer is required. No platform engine code
 or private repository access is included.
 
@@ -217,7 +217,7 @@ grok plugin install PulseBet/pulse-verity --trust
 ```
 
 Start a new Grok Build session, then ask for the current Bitcoin index price.
-The plugin starts `npx -y pulse-verity@1.3.4`; Node.js 18 or newer and npm are
+The plugin starts `npx -y pulse-verity@1.3.5`; Node.js 18 or newer and npm are
 required. Limited BTC, ETH and SOL samples work without an API key. To enable
 catalogue, batch and recorded-print requests, set `PULSE_API_KEY` in the
 environment that launches Grok Build, then start a new session. Get a developer
@@ -250,7 +250,7 @@ gemini extensions install https://github.com/PulseBet/pulse-verity --skip-settin
 ```
 
 Restart Gemini CLI, then ask for the current Bitcoin index price. The extension
-starts the pinned `pulse-verity@1.3.4` package through `npx`; Node.js and npm
+starts the pinned `pulse-verity@1.3.5` package through `npx`; Node.js and npm
 must be available. Limited BTC, ETH and SOL samples work without a key. Gemini may warn
 that the optional setting is unset; that does not prevent keyless startup.
 
@@ -273,7 +273,7 @@ not a listing in the consumer Gemini chat app.
 
 ### Manual MCP configuration
 
-All of these pin `npx -y pulse-verity@1.3.4`. The examples show a placeholder
+All of these pin `npx -y pulse-verity@1.3.5`. The examples show a placeholder
 `PULSE_API_KEY`; omit the `env` entry for the keyless sample workflow.
 
 **Codex CLI** — `~/.codex/config.toml`:
@@ -281,20 +281,20 @@ All of these pin `npx -y pulse-verity@1.3.4`. The examples show a placeholder
 ```toml
 [mcp_servers.pulse-verity]
 command = "npx"
-args = ["-y", "pulse-verity@1.3.4"]
+args = ["-y", "pulse-verity@1.3.5"]
 env = { PULSE_API_KEY = "pidx_your_key" }
 ```
 
 **Windsurf** — `~/.codeium/windsurf/mcp_config.json`, and **Cursor** — `~/.cursor/mcp.json`:
 
 ```json
-{ "mcpServers": { "pulse-verity": { "command": "npx", "args": ["-y", "pulse-verity@1.3.4"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+{ "mcpServers": { "pulse-verity": { "command": "npx", "args": ["-y", "pulse-verity@1.3.5"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
 ```
 
 **VS Code (Copilot agent mode)** — `.vscode/mcp.json`:
 
 ```json
-{ "servers": { "pulse-verity": { "type": "stdio", "command": "npx", "args": ["-y", "pulse-verity@1.3.4"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+{ "servers": { "pulse-verity": { "type": "stdio", "command": "npx", "args": ["-y", "pulse-verity@1.3.5"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
 ```
 
 **Gemini CLI** — `~/.gemini/settings.json`, same `mcpServers` block as Cursor.
@@ -314,7 +314,7 @@ Gemini plugins in this repository do not load these files.
 
 ## Claude Desktop: one-click install
 
-Download [`pulse-verity-1.3.4.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.3.4/pulse-verity-1.3.4.mcpb),
+Download [`pulse-verity-1.3.5.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.3.5/pulse-verity-1.3.5.mcpb),
 open it with Claude Desktop (macOS or Windows), and leave the optional key blank
 to try limited BTC, ETH and SOL samples. Add your developer key for catalogue,
 batch and recorded-print requests. The bundle contains the same compiled server modules npm ships, with its runtime
@@ -516,7 +516,7 @@ no saved receipt is claimed and the agent must not repeatedly retry.
 The tool does not run submitted instructions, create pull requests or change
 production. Humans review reports before any fix is proposed.
 
-This README describes version `1.3.4`. Each npm release has a matching
+This README describes version `1.3.5`. Each npm release has a matching
 versioned MCPB in [GitHub Releases](https://github.com/PulseBet/pulse-verity/releases/latest).
 Pinned installations keep their configured package version until the
 configuration is updated. Unpinned installations may resolve newer npm releases.
