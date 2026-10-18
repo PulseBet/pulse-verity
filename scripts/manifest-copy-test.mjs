@@ -69,7 +69,13 @@ test("registry-only metadata versions must sort above the unchanged stable packa
 
 test("registry and Cursor descriptions keep coverage and access bounded", () => {
   assert(registry.description.length <= 100);
-  const descriptions = [registry.description, cursor.description,
+  // The registry description is the listing text Justin approved on 15 Oct and
+  // kept unchanged on 17 Oct so the GitHub MCP Registry listing does not change
+  // with 1.3.3. It is held to the same bounds below except the 'offline' word,
+  // which describes checking a print against an already-published key.
+  assert.equal(registry.description, "Signed crypto prices, built for AI agents: multi-exchange prices anyone can verify offline.");
+  assert.doesNotMatch(registry.description, /4,?800|60 requests|no card|unlocks|full catalogue|every price|any signed print/i);
+  const descriptions = [cursor.description,
     cursor.variables.properties.PULSE_API_KEY.description,
     ...registry.packages.flatMap((item) => item.environmentVariables.map(({ description }) => description))];
   for (const description of descriptions) {
