@@ -112,6 +112,15 @@ export function safeIsoTimestamp(value: unknown): string | undefined {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value ? value : undefined;
 }
 
+/** A keyless daily reset is believable only if it lies within the next 48
+ *  hours; anything else falls back to "the next UTC day". */
+export function safeDailyReset(value: unknown, now: number = Date.now()): string | undefined {
+  const iso = safeIsoTimestamp(value);
+  if (!iso) return undefined;
+  const at = new Date(iso).getTime();
+  return at > now && at <= now + 48 * 3600 * 1000 ? iso : undefined;
+}
+
 function safeSampleLimit(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 1000 ? value : undefined;
 }
@@ -120,7 +129,7 @@ export async function readKeyRequiredDetails(response: Response): Promise<KeyReq
   if (response.status !== 401) return undefined;
   const body = await readBoundedErrorObject(response);
   if (!body || body.code !== "KEY_REQUIRED") return undefined;
-  const resetAt = safeIsoTimestamp(body.resetAt);
+  const resetAt = safeDailyReset(body.resetAt);
   const limit = safeSampleLimit(body.limit);
   return { code: "KEY_REQUIRED", ...(resetAt ? { resetAt } : {}), ...(limit ? { limit } : {}) };
 }

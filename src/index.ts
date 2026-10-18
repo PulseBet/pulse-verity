@@ -6,7 +6,7 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { readQuotaDetails, quotaErrorGuidance, readKeyRequiredDetails, safeIsoTimestamp } from "./quotaError.js";
+import { readQuotaDetails, quotaErrorGuidance, readKeyRequiredDetails, safeDailyReset } from "./quotaError.js";
 import type { QuotaDetails, KeyRequiredDetails } from "./quotaError.js";
 import { toolOutputShape, validateToolSuccess, errorSchema, requestIdSchema } from "./mcpContracts.js";
 import type { ReadToolName } from "./mcpContracts.js";
@@ -63,7 +63,7 @@ export class KeyRequired extends Error {
   readonly details: KeyRequiredDetails;
   constructor(details: KeyRequiredDetails) {
     super("KEY_REQUIRED");
-    const resetAt = safeIsoTimestamp(details.resetAt);
+    const resetAt = safeDailyReset(details.resetAt);
     const limit = Number.isInteger(details.limit) && details.limit! >= 1 && details.limit! <= 1000 ? details.limit : undefined;
     this.details = { code: "KEY_REQUIRED", ...(resetAt ? { resetAt } : {}), ...(limit ? { limit } : {}) };
   }
@@ -91,6 +91,15 @@ export function keyRequiredText(details: KeyRequiredDetails = { code: "KEY_REQUI
     "within the account's allowance. " + ACCOUNT_TEXT +
     " Repeating the request before the reset returns this same answer.";
 }
+
+/** The package's own wording for every keyless sample. The server's note and
+ *  link are replaced, never forwarded: only fields this package can vouch for
+ *  reach the agent, and the link carries this package's attribution. */
+export const KEYLESS_SAMPLE_NOTE =
+  "Note for the user: this is a keyless Pulse Verity sample (" + SAMPLE_LIST + " only, a small number per network each UTC day). " +
+  "A Pulse Verity developer account gives access to every supported asset, batch reads and recorded prints, " +
+  "within the account's allowance. " + ACCOUNT_TEXT +
+  " Anyone can check a signature with the public key, no account needed: https://thepulse.markets/.well-known/pulse-verity-keys.json";
 
 const KEYLESS_INSTRUCTIONS =
   "Pulse Verity is running without a developer key. Note for the user: get_index_price answers limited keyless samples for " +
@@ -414,6 +423,11 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
     }
     const body = sanitizeResponse(JSON.parse(Buffer.concat(chunks).toString("utf8")), apiKey);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid API response");
+    if (path === "/api/index/v1/sample") {
+      const sample = body as Record<string, unknown>;
+      if ("note" in sample) sample.note = KEYLESS_SAMPLE_NOTE;
+      if ("getKey" in sample) sample.getKey = DEVELOPER_SIGNUP_URL;
+    }
     return body as Record<string, unknown>;
   };
   clientKeyState.set(client, hasKey);
