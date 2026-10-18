@@ -1,13 +1,87 @@
 # Pulse Verity Index
 
-**Signed crypto prices built for AI agents.** `pulse-verity` connects an AI agent
-to the **Pulse Verity Index**: signed, verifiable crypto index prices through the
-Model Context Protocol (MCP).
+**Signed crypto prices built for AI agents.** `pulse-verity` is an MCP server
+for signed crypto reference prices from the **Pulse Verity Index**, with local receipt verification. Try limited BTC, ETH
+and SOL samples without an account or API key. A valid signature authenticates
+the signed fields; it does not prove price accuracy, freshness or suitability
+for trading.
 
-Listed in the [GitHub MCP Registry](https://github.com/mcp/PulseBet/pulse-verity)
-and the official MCP Registry as `io.github.PulseBet/pulse-verity`, with one-click
-install from the GitHub listing. A listing is not an endorsement by GitHub or the
-registry.
+[**View the GitHub MCP Registry listing**](https://github.com/mcp/PulseBet/pulse-verity)
+· [Developer access and plans](https://thepulse.markets/developers)
+
+Listed in the GitHub MCP Registry and the official MCP Registry as
+`io.github.PulseBet/pulse-verity`. A listing is not an endorsement by GitHub or
+the registry.
+
+**Two ways to start:**
+- **Fastest, no install:** [connect the hosted server](#connect-the-hosted-server-sign-in-with-google-no-key-to-copy)
+  and sign in with Google. Your developer account and key are created for you.
+- **Try without an account:** the three steps below run the npm package with no
+  key and verify a signed BTC sample.
+
+## First signed BTC sample: install, read, verify
+
+**1. Install in Claude Code.** With Claude Code, Node.js 18 or newer and npm
+available, run this command in your terminal. It registers the pinned stdio
+server; `npx` downloads and starts the package when your client connects.
+
+```bash
+claude mcp add pulse-verity -- npx -y pulse-verity@1.3.3
+```
+
+Start a new Claude Code session. Leave `PULSE_API_KEY` unset for this keyless
+workflow. If you already configured a Verity server, review that client's saved
+configuration rather than registering a duplicate. For VS Code, Cursor, Codex
+and other clients, see [manual MCP configuration](#manual-mcp-configuration).
+
+**2. Request a sample.** Paste this prompt into your connected agent and approve
+the two read/verification tool calls if your client asks:
+
+```text
+Read a BTC sample using Pulse Verity, verify the unchanged signed receipt, and report its timestamp, sample status and verification scope.
+```
+
+The first tool call is `get_index_price` with these arguments:
+
+```json
+{ "symbol": "BTC" }
+```
+
+**3. Verify that same receipt.** The agent should pass the successful price
+object from `structuredContent` (or the equivalent text JSON) directly to
+`verify_print` as its top-level tool arguments, including the complete
+`v2` block when present. Do not round `price`, rewrite `priceText`, remove signed
+fields or fetch a replacement price to verify. Do not pass the outer MCP
+`content`/`structuredContent` envelope or wrap the receipt in a `print` property.
+
+Check the original observation's `at` timestamp and `sample: true`, then inspect
+the verifier's `valid`, `recordValid` and `verificationScope`. `full-record`
+requires `recordValid: true`; `price-only` authenticates only the legacy price
+fields. Sample status and other envelope metadata are not signed. A missing,
+stale, rate-limited or invalid response is not a successful verified sample.
+
+Verification runs locally after fetching Pulse's published public-key ring
+over HTTPS. It needs the matching key to remain published; it is not a promise
+of a fully offline first run. See [signature coverage](#signed-prices-and-catalog-data)
+for the exact fields and trust boundary.
+
+## Without a key vs. developer access
+
+| Access | What you can do |
+|---|---|
+| No account or key | Limited `get_index_price` samples for BTC, ETH and SOL; local `verify_print` using the published keys. Sample availability and rate limits apply. |
+| Your own developer key | Request other supported symbols, catalogue pages, batches and recorded prints, subject to your account's plan, allowance and current data availability. Private feedback also needs a key and enabled intake; the beginner workflow does not submit feedback. |
+| Hosted MCP | Sign in with Google (or an existing developer password or key) from your client; no key to copy. The keyless workflow above uses the installed stdio package. |
+
+Create or sign in to your account at the
+[developer portal](https://thepulse.markets/developers), then
+[view available plans](https://thepulse.markets/developers#/portal/pricing).
+Configure keys only in your client's private settings, never in a prompt or
+committed configuration. Developer access does not imply unlimited usage or
+availability of every asset. [Request limits and account access](#request-limits-and-account-access)
+explains temporary rate limits and monthly allowances.
+
+## Tools and integration guides
 
 For workflow and framework setup, see the [integration examples](integrations/):
 Vercel AI SDK, n8n, LangChain/LangGraph, Google ADK, CrewAI, Dify, Flowise and Langflow.
@@ -56,23 +130,6 @@ instead. Keep it in the client's private configuration, never in chat:
 - **Claude Code**: `claude mcp add --transport http pulse-verity https://mcp.thepulse.markets/api/index/mcp --header "Authorization: Bearer pidx_your_key"`
 - **Any client with remote MCP support**: `{ "url": "https://mcp.thepulse.markets/api/index/mcp", "headers": { "Authorization": "Bearer pidx_your_key" } }`
 
-## Try it without an account (BTC, ETH, SOL samples, limited per day)
-
-The local npm server starts and answers with no configuration at all. Without
-a key it serves `get_index_price` for BTC, ETH and SOL from the keyless sample,
-a small number per network each UTC day. `verify_print` also works without a key.
-
-```bash
-claude mcp add pulse-verity -- npx -y pulse-verity
-```
-
-Then ask your agent for the Bitcoin index price. Successful sample receipts are
-signed and verifiable, exactly like a keyed one. Requests the sample does not
-cover return `NO_KEY`; once the day's samples are used, the price tool returns
-`KEY_REQUIRED` with the reset time. Both point to the developer sign-up and the
-hosted server. Without a key, the server also sends MCP `instructions` that
-explain the sample and how to connect.
-
 ## Add a developer key locally
 
 A developer key enables catalogue access, batch reads and recorded prints,
@@ -85,7 +142,7 @@ configuration; never share it in chat.
 ```bash
 claude mcp add pulse-verity \
   --env PULSE_API_KEY=pidx_your_key_here \
-  -- npx -y pulse-verity
+  -- npx -y pulse-verity@1.3.3
 ```
 
 For any stdio MCP client:
@@ -95,7 +152,7 @@ For any stdio MCP client:
   "mcpServers": {
     "pulse-verity": {
       "command": "npx",
-      "args": ["-y", "pulse-verity"],
+      "args": ["-y", "pulse-verity@1.3.3"],
       "env": { "PULSE_API_KEY": "pidx_your_key_here" }
     }
   }
@@ -197,27 +254,28 @@ not a listing in the consumer Gemini chat app.
 
 ### Manual MCP configuration
 
-All of these run `npx -y pulse-verity` with `PULSE_API_KEY` in the environment.
+All of these pin `npx -y pulse-verity@1.3.3`. The examples show a placeholder
+`PULSE_API_KEY`; omit the `env` entry for the keyless sample workflow.
 
 **Codex CLI** — `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.pulse-verity]
 command = "npx"
-args = ["-y", "pulse-verity"]
+args = ["-y", "pulse-verity@1.3.3"]
 env = { PULSE_API_KEY = "pidx_your_key" }
 ```
 
 **Windsurf** — `~/.codeium/windsurf/mcp_config.json`, and **Cursor** — `~/.cursor/mcp.json`:
 
 ```json
-{ "mcpServers": { "pulse-verity": { "command": "npx", "args": ["-y", "pulse-verity"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+{ "mcpServers": { "pulse-verity": { "command": "npx", "args": ["-y", "pulse-verity@1.3.3"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
 ```
 
 **VS Code (Copilot agent mode)** — `.vscode/mcp.json`:
 
 ```json
-{ "servers": { "pulse-verity": { "type": "stdio", "command": "npx", "args": ["-y", "pulse-verity"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+{ "servers": { "pulse-verity": { "type": "stdio", "command": "npx", "args": ["-y", "pulse-verity@1.3.3"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
 ```
 
 **Gemini CLI** — `~/.gemini/settings.json`, same `mcpServers` block as Cursor.
@@ -233,12 +291,12 @@ dependencies. Existing downloaded bundles must be replaced with the new release.
 ## Where to find it
 
 - npm: [`pulse-verity`](https://www.npmjs.com/package/pulse-verity)
-- Official MCP Registry: `io.github.PulseBet/pulse-verity`
+- Official MCP Registry: [`io.github.PulseBet/pulse-verity`](https://github.com/mcp/PulseBet/pulse-verity)
 - Cursor: `.cursor-plugin/plugin.json` packages the MCP for marketplace review; manual MCP configuration is shown above
 - Grok Build: `.grok-plugin/plugin.json` packages the MCP for direct GitHub installation and marketplace review
 - Gemini CLI: `gemini-extension.json` packages the public MCP for the extension gallery and GitHub installation
 - Claude Desktop: add the JSON block above to `claude_desktop_config.json`
-- Smithery: `smithery.yaml` in this repo declares the stdio command and the one key it needs
+- Smithery: `smithery.yaml` in this repo declares the stdio command and optional developer key
 
 Local installations run the same npm package and send a configured developer
 key only to the pinned Pulse Verity API. The separate hosted MCP endpoint is
@@ -246,7 +304,7 @@ documented above.
 
 ## Security boundary
 
-- Read-only MCP tools only.
+- Five read-only data/verification tools and one explicit private feedback-submission tool.
 - API origin pinned to the public Pulse Verity Index API.
 - Developer key read from local configuration and sent only to that API.
 - Print verification happens locally using ECDSA P-256/SHA-256.
@@ -414,7 +472,9 @@ no saved receipt is claimed and the agent must not repeatedly retry.
 The tool does not run submitted instructions, create pull requests or change
 production. Humans review reports before any fix is proposed.
 
-This branch prepares version 1.3.3. The pinned 1.3.3 plugin commands and MCPB
-download above become available only after this release is approved and
-published. Existing 1.3.1 installations remain unchanged until upgraded. Hosted deployment is
-reviewed separately; inspect its advertised tools before using new features.
+Version `1.3.3` is published on npm and its versioned MCPB is available in
+[GitHub Releases](https://github.com/PulseBet/pulse-verity/releases/latest).
+Pinned installations keep their configured package version until the
+configuration is updated. Unpinned installations may resolve newer npm releases.
+The hosted service is deployed separately; inspect its advertised tools rather
+than assuming it matches this installed package.
