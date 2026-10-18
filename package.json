@@ -14,6 +14,7 @@
     "dist/quotaError.js",
     "dist/mcpContracts.js",
     "dist/feedbackContract.js",
+    ".agents/skills/pulse-verity/",
     "README.md",
     "LICENSE",
     "SECURITY.md"
@@ -22,7 +23,7 @@
     "build": "tsc",
     "prepublishOnly": "npm run build && node dist/selftest.js && node dist/agenttest.js && node dist/plantest.js && node scripts/entrypoint-test.mjs",
     "start": "node dist/index.js",
-    "test": "npm run build && node dist/selftest.js && node dist/agenttest.js && node dist/plantest.js && node scripts/words-test.mjs && node scripts/keyless-test.mjs && node scripts/manifest-copy-test.mjs && node scripts/manifest-tools-test.mjs && node scripts/cursor-plugin-test.mjs && node scripts/grok-plugin-test.mjs && node scripts/gemini-extension-test.mjs && node scripts/release-packaging-test.mjs && node scripts/entrypoint-test.mjs",
+    "test": "npm run build && node dist/selftest.js && node dist/agenttest.js && node dist/plantest.js && node scripts/words-test.mjs && node scripts/keyless-test.mjs && node scripts/manifest-copy-test.mjs && node scripts/manifest-tools-test.mjs && node scripts/cursor-plugin-test.mjs && node scripts/grok-plugin-test.mjs && node scripts/gemini-extension-test.mjs && node scripts/release-packaging-test.mjs && node scripts/agent-skills-test.mjs && node scripts/entrypoint-test.mjs",
     "check:words": "node scripts/words-test.mjs",
     "prepare:alias": "node scripts/prepare-alias.mjs",
     "clean": "rm -rf dist",
@@ -30,7 +31,8 @@
     "check:manifest": "node scripts/manifest-tools-test.mjs",
     "check:cursor": "node scripts/cursor-plugin-test.mjs",
     "check:grok": "node scripts/grok-plugin-test.mjs",
-    "check:gemini": "node scripts/gemini-extension-test.mjs"
+    "check:gemini": "node scripts/gemini-extension-test.mjs",
+    "check:skills": "node scripts/agent-skills-test.mjs"
   },
   "engines": {
     "node": ">=18"

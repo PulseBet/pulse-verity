@@ -299,6 +299,19 @@ env = { PULSE_API_KEY = "pidx_your_key" }
 
 **Gemini CLI** — `~/.gemini/settings.json`, same `mcpServers` block as Cursor.
 
+### Agent skill, Cursor rule and AGENTS.md
+
+[`.agents/skills/pulse-verity`](.agents/skills/pulse-verity/SKILL.md) is an
+Agent Skill that tells an agent when to use Pulse Verity, how to connect, how to
+verify a print and how to handle account limits. Install it with
+`npx skills add PulseBet/pulse-verity --skill pulse-verity`, or copy the folder
+into `~/.claude/skills/` for Claude Code or `.agents/skills/` for Codex and
+other clients. The npm package includes the same folder.
+[`.cursor/rules/pulse-verity.mdc`](.cursor/rules/pulse-verity.mdc) carries the
+guidance as a Cursor rule, and the marked section of [`AGENTS.md`](AGENTS.md)
+can be copied into a project's own `AGENTS.md`. The Claude, Cursor, Grok and
+Gemini plugins in this repository do not load these files.
+
 ## Claude Desktop: one-click install
 
 Download [`pulse-verity-1.3.4.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.3.4/pulse-verity-1.3.4.mcpb),
