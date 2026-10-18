@@ -93,7 +93,7 @@ jobs:
             "$RUNNER_TEMP/verity-gemini/assets/win32.pulse-verity.tar.gz" \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Pulse Verity $MCPB_VERSION" \
-            --notes "Fix recorded-print reads with band-only archived cadence. Verify complete 13-field archived and 15-field daily-close v2 records alongside the unchanged 18-field live format and legacy price signature. Daily-close identity and day are authenticated; non-null unsigned archive freshness ages are rejected. Live and batch response validation remains strict. No price calculations change. Includes npm, desktop and Gemini packages; existing installs must update to 1.3.1."
+            --notes "Keyless guidance: requests outside the BTC, ETH and SOL sample return NO_KEY, and a spent daily sample returns KEY_REQUIRED with the package-built developer sign-up link, the hosted server and a validated reset time, instead of a refused-key message. A configured key keeps its existing errors. Adds the hosted server to the registry listing, MCP instructions only when no key is configured, and a pulse-verity User-Agent. No price calculations change. Includes npm, desktop and Gemini packages; existing installs must update to 1.3.3."
 
   verify-published-gemini:
     needs: publish-desktop-bundle

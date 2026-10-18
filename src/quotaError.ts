@@ -44,18 +44,18 @@ function safeCapacityAction(value: unknown): CapacityAction | undefined {
   return value === "review_plans" || value === "contact_support" ? value : undefined;
 }
 
-/** Never pass through upstream messages, links, account identifiers or headers. */
-export async function readQuotaDetails(response: Response): Promise<QuotaDetails> {
-  if (response.status !== 429) return {};
-  const retryAfterSeconds = parseRetryAfter(response.headers.get("retry-after"));
-  const fallback: QuotaDetails = retryAfterSeconds === undefined ? {} : { retryAfterSeconds };
+/** Read a JSON object error body of at most maxBytes. Anything oversized,
+ * streamed past the cap, malformed or not an object becomes undefined, and
+ * an unfinished stream is cancelled. Callers allowlist individual fields. */
+export async function readBoundedErrorObject(response: Response,
+  maxBytes = MAX_QUOTA_ERROR_BYTES): Promise<Record<string, unknown> | undefined> {
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
-    if (Number(response.headers.get("content-length")) > MAX_QUOTA_ERROR_BYTES) {
+    if (Number(response.headers.get("content-length")) > maxBytes) {
       await response.body?.cancel().catch(() => {});
-      return fallback;
+      return undefined;
     }
-    if (!response.body) return fallback;
+    if (!response.body) return undefined;
     reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let length = 0;
@@ -63,28 +63,66 @@ export async function readQuotaDetails(response: Response): Promise<QuotaDetails
       const { done, value } = await reader.read();
       if (done) break;
       length += value.byteLength;
-      if (length > MAX_QUOTA_ERROR_BYTES) throw new Error("Quota response exceeds its size limit");
+      if (length > maxBytes) throw new Error("Error response exceeds its size limit");
       chunks.push(value);
     }
     const bytes = new Uint8Array(length);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
     const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    if (!body || typeof body !== "object" || Array.isArray(body)) return fallback;
-    const code = (body as Record<string, unknown>).code;
-    if (code === "MONTHLY_LIMIT") {
-      const resetAt = safeMonthlyReset((body as Record<string, unknown>).resetAt);
-      const capacityAction = safeCapacityAction((body as Record<string, unknown>).capacityAction);
-      return { code, ...(resetAt ? { resetAt } : {}), ...(capacityAction ? { capacityAction } : {}) };
-    }
-    if (code === "RATE_LIMITED") return { code, ...fallback };
-    return fallback;
+    return body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : undefined;
   } catch {
     await reader?.cancel().catch(() => {});
-    return fallback;
+    return undefined;
   } finally {
     reader?.releaseLock();
   }
+}
+
+/** Never pass through upstream messages, links, account identifiers or headers. */
+export async function readQuotaDetails(response: Response): Promise<QuotaDetails> {
+  if (response.status !== 429) return {};
+  const retryAfterSeconds = parseRetryAfter(response.headers.get("retry-after"));
+  const fallback: QuotaDetails = retryAfterSeconds === undefined ? {} : { retryAfterSeconds };
+  const body = await readBoundedErrorObject(response);
+  if (!body) return fallback;
+  const code = body.code;
+  if (code === "MONTHLY_LIMIT") {
+    const resetAt = safeMonthlyReset(body.resetAt);
+    const capacityAction = safeCapacityAction(body.capacityAction);
+    return { code, ...(resetAt ? { resetAt } : {}), ...(capacityAction ? { capacityAction } : {}) };
+  }
+  if (code === "RATE_LIMITED") return { code, ...fallback };
+  return fallback;
+}
+
+/** The keyless sample's daily allowance is spent (HTTP 401, code KEY_REQUIRED).
+ * Only the code, a canonical UTC timestamp and a small integer survive; the
+ * server's message and links are discarded and rebuilt by the package. */
+export interface KeyRequiredDetails {
+  code: "KEY_REQUIRED";
+  resetAt?: string;
+  limit?: number;
+}
+
+/** A canonical ISO-8601 UTC timestamp, exactly as Date#toISOString writes it. */
+export function safeIsoTimestamp(value: unknown): string | undefined {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return undefined;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value ? value : undefined;
+}
+
+function safeSampleLimit(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 1000 ? value : undefined;
+}
+
+export async function readKeyRequiredDetails(response: Response): Promise<KeyRequiredDetails | undefined> {
+  if (response.status !== 401) return undefined;
+  const body = await readBoundedErrorObject(response);
+  if (!body || body.code !== "KEY_REQUIRED") return undefined;
+  const resetAt = safeIsoTimestamp(body.resetAt);
+  const limit = safeSampleLimit(body.limit);
+  return { code: "KEY_REQUIRED", ...(resetAt ? { resetAt } : {}), ...(limit ? { limit } : {}) };
 }
 
 /** Reconstruct metadata rather than forwarding even an internally supplied object. */

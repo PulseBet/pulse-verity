@@ -58,11 +58,15 @@ export const verificationSchema = z.object({
 });
 export const errorSchema = z.object({
   code: z.string().regex(/^[A-Z][A-Z0-9_]{0,79}$/),
-  nextAction: z.enum(['wait', 'review_access', 'check_limits', 'reconnect', 'check_input', 'choose_another_symbol', 'report_issue']),
+  nextAction: z.enum(['wait', 'review_access', 'check_limits', 'reconnect', 'check_input', 'choose_another_symbol', 'report_issue', 'get_key']),
   retryable: z.boolean().optional(), retryAfterSeconds: z.number().int().min(1).max(86400).optional(),
   accountUrl: z.literal('https://thepulse.markets/developers/access').optional(),
   upgradeUrl: z.literal('https://thepulse.markets/developers#/portal/pricing').optional(),
-  resetAt: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-01T00:00:00\.000Z$/).optional(),
+  // NO_KEY and KEY_REQUIRED: the developer sign-up page, built by the adapter, never relayed.
+  getKeyUrl: z.string().max(256).regex(/^https:\/\/thepulse\.markets\/developers(?:[/?#][^\s]*)?$/).optional(),
+  hostedServerUrl: z.literal('https://mcp.thepulse.markets/api/index/mcp').optional(),
+  // MONTHLY_LIMIT resets on a UTC month boundary; KEY_REQUIRED on the next UTC day.
+  resetAt: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}Z$/).optional(),
   capacityAction: z.enum(['review_plans', 'contact_support']).optional()
 });
 export const requestIdSchema = z.string().uuid().describe('Identifier for this MCP call; not a signed price field.');

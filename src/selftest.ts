@@ -248,7 +248,7 @@ for (const capacityAction of ["review_plans", "contact_support"] as const) {
   const guidance = quotaErrorGuidance(details);
   ok(guidance.error.resetAt === quotaReset && guidance.error.capacityAction === capacityAction
     && guidance.error.upgradeUrl === DEVELOPER_UPGRADE_URL && guidance.text.includes("Or wait until the quota resets at " + quotaReset),
-    "free, paid and highest-capacity monthly guidance preserves the metered reset and safe plans route");
+    "developer, paid and highest-capacity monthly guidance preserves the metered reset and safe plans route");
   ok(capacityAction !== "contact_support" || /Enterprise contact.*self-serve plan may not be available/.test(guidance.text),
     "highest-capacity guidance uses the existing plans-page contact without inventing an upgrade");
 }

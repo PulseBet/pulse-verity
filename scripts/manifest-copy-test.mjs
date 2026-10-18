@@ -83,6 +83,12 @@ test("registry and Cursor descriptions keep coverage and access bounded", () => 
   }
 });
 
+test("registry lists the hosted server as a streamable-http remote beside the npm package", () => {
+  assert.deepEqual(registry.remotes, [{ type: "streamable-http", url: "https://mcp.thepulse.markets/api/index/mcp" }]);
+  assert.equal(registry.packages[0].transport.type, "stdio");
+  assert.match(registry.$schema, /\/schemas\/2025-12-11\/server\.schema\.json$/);
+});
+
 test("runtime and package pins stay synchronized across registry metadata revisions", () => {
   const pkg = JSON.parse(read("package.json"));
   const lock = JSON.parse(read("package-lock.json"));

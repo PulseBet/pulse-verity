@@ -7,12 +7,12 @@
     "url": "https://github.com/PulseBet/pulse-verity",
     "source": "github"
   },
-  "version": "1.3.2",
+  "version": "1.3.3",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "pulse-verity",
-      "version": "1.3.1",
+      "version": "1.3.3",
       "transport": {
         "type": "stdio"
       },
@@ -25,6 +25,12 @@
           "isSecret": true
         }
       ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.thepulse.markets/api/index/mcp"
     }
   ]
 }

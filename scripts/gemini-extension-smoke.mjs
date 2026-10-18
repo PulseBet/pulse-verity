@@ -58,8 +58,12 @@ try {
   assert(tools.filter(({ name }) => name !== "submit_verity_feedback").every(({ annotations }) => annotations?.readOnlyHint === true));
   assert.equal(tools.find(({ name }) => name === "submit_verity_feedback").annotations.readOnlyHint, false);
   const needsKey = await client.callTool({ name: "get_index_batch", arguments: { symbols: ["BTC", "ETH"] } });
-  assert.match(JSON.stringify(needsKey), /free.*key|key.*free/i);
-  assert.match(JSON.stringify(needsKey), /thepulse\.markets\/developers/);
+  assert.equal(needsKey.isError, true);
+  assert.equal(needsKey.structuredContent?.error?.code, "NO_KEY");
+  assert.equal(needsKey.structuredContent?.error?.nextAction, "get_key");
+  assert.match(needsKey.structuredContent?.error?.getKeyUrl ?? "", /^https:\/\/thepulse\.markets\/developers/);
+  assert.match(JSON.stringify(needsKey), /developer key/);
+  assert.doesNotMatch(JSON.stringify(needsKey), /\bfree\b/i);
   console.log(`PASS: installed Gemini manifest starts ${candidateTarball ? "candidate tarball" : "npm release"}, exposes five data tools and private feedback, and handles missing key`);
   if (live) {
     const result = await client.callTool({ name: "get_index_price", arguments: { symbol: "BTC" } });

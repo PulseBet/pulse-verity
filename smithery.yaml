@@ -2,10 +2,11 @@
 # A stdio server published on npm as `pulse-verity`.
 #
 # The API key is OPTIONAL. With no key the server starts and answers
-# get_index_price for BTC, ETH and SOL from the free sample, signed and
-# verifiable exactly like a keyed read. A free key from
-# https://thepulse.markets/developers unlocks the full catalog, batch reads,
-# settlement prints and signature verification.
+# get_index_price with limited BTC, ETH and SOL samples, signed and
+# verifiable exactly like a keyed read; verify_print also works without a key.
+# A developer key from https://thepulse.markets/developers (Developer plan,
+# no charge) adds catalogue discovery, batch reads and recorded prints,
+# subject to the account's allowance.
 startCommand:
   type: stdio
   configSchema:
@@ -16,10 +17,10 @@ startCommand:
         type: string
         title: Pulse API key (optional)
         description: >-
-          Optional. Leave blank to try the free sample (BTC, ETH, SOL). A free
-          developer key (starts with pidx_) from thepulse.markets/developers
-          unlocks 4,800+ assets, batch reads, settlement prints and
-          signature verification.
+          Optional. Leave blank for limited BTC, ETH and SOL samples. For
+          broader requests, use your own developer key from
+          https://thepulse.markets/developers (Developer plan, no charge).
+          Access, coverage and usage allowances depend on your account.
   commandFunction: |-
     (config) => ({
       command: 'npx',

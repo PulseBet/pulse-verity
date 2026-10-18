@@ -24,7 +24,7 @@ grok plugin install PulseBet/pulse-verity --trust
 ```
 
 Start a new Grok Build session. The plugin starts the pinned public npm package
-`pulse-verity@1.3.1`. Leave `PULSE_API_KEY` unset for the keyless sample.
+`pulse-verity@1.3.3`. Leave `PULSE_API_KEY` unset for the keyless sample.
 
 Paste this task into the agent:
 
@@ -56,12 +56,13 @@ fields remain unsigned. See
 
 ## Add a self-service developer key
 
-1. Open [the Verity developer portal](https://thepulse.markets/developers).
-2. Create a developer account, verify your email, then create a key.
+1. Open [the Verity developer sign-up](https://thepulse.markets/developers?ref=mcp-npm#/signup)
+   (Developer plan, no charge; Continue with Google skips the email step).
+2. Create a key in the developer portal.
 3. Set `PULSE_API_KEY` securely in the environment that launches Grok Build,
    then start a new session. Do not paste the key into a chat or commit it.
 
-A free key enables additional reads subject to account limits and coverage.
+A developer key enables additional reads subject to account limits and coverage.
 Try one bounded catalogue request, `list_index_assets` with
 `{"limit":10,"offset":0}`, then obtain signed prices with `get_index_price` or
 `get_index_batch`. Catalogue rows themselves are unsigned.
@@ -108,7 +109,7 @@ and configure the following values in your server-side application:
 The native xAI SDK calls the allowlist `allowed_tool_names`; use the spelling
 for your chosen client. The xAI API key authenticates your model request. The
 **separate Verity key** authenticates the MCP connection. The hosted endpoint
-requires Verity authentication; the local keyless sample is not a hosted free
+requires Verity authentication; the local keyless sample is not a hosted
 authentication mode. Model usage and Verity usage have separate limits.
 
 Use the prompt above first, inspect actual tool calls and errors, then add only

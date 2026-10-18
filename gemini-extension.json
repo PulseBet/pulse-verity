@@ -1,17 +1,17 @@
 {
   "name": "pulse-verity",
-  "version": "1.3.1",
+  "version": "1.3.3",
   "description": "Read crypto reference-price observations and verify signed receipts. Limited BTC, ETH and SOL samples need no API key. Catalogue rows and surrounding metadata are unsigned; coverage and account allowances vary.",
   "mcpServers": {
     "pulse-verity": {
       "command": "npx",
-      "args": ["-y", "pulse-verity@1.3.1"]
+      "args": ["-y", "pulse-verity@1.3.3"]
     }
   },
   "settings": [
     {
       "name": "Pulse API key (optional)",
-      "description": "Leave blank for BTC, ETH and SOL samples. Get a free key at https://thepulse.markets/developers for catalogue access, batch reads and settlement prints.",
+      "description": "Leave blank for limited BTC, ETH and SOL samples. For broader requests, use your own developer key from https://thepulse.markets/developers (Developer plan, no charge). Access and usage allowances depend on your account.",
       "envVar": "PULSE_API_KEY",
       "sensitive": true
     }

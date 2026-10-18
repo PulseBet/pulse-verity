@@ -6,15 +6,19 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { readQuotaDetails, quotaErrorGuidance } from "./quotaError.js";
-import type { QuotaDetails } from "./quotaError.js";
+import { readQuotaDetails, quotaErrorGuidance, readKeyRequiredDetails, safeIsoTimestamp } from "./quotaError.js";
+import type { QuotaDetails, KeyRequiredDetails } from "./quotaError.js";
 import { toolOutputShape, validateToolSuccess, errorSchema, requestIdSchema } from "./mcpContracts.js";
 import type { ReadToolName } from "./mcpContracts.js";
 import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, containsFeedbackTranscript, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
 import type { FeedbackInput } from "./feedbackContract.js";
 
-export const SERVER_VERSION = "1.3.1";
+export const SERVER_VERSION = "1.3.3";
+export const USER_AGENT = "pulse-verity/" + SERVER_VERSION;
 export const API_BASE = "https://mcp.thepulse.markets";
+/** Built into the package; never taken from an API response. */
+export const DEVELOPER_SIGNUP_URL = "https://thepulse.markets/developers?ref=mcp-npm#/signup";
+export const HOSTED_MCP_URL = "https://mcp.thepulse.markets/api/index/mcp";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const INDEX_SIG_VERSION_V2 = "pulse-index-v2";
 /** Complete live index-print contract. Recorded prints have no live age fields. */
@@ -45,7 +49,7 @@ const API_PATHS = [
   "/api/index/v1/sample", "/api/index/v1/feedback"
 ] as const;
 
-/** Assets the keyless sample covers. Everything else needs a free key. */
+/** Assets the keyless sample covers. Everything else needs a developer key. */
 export const SAMPLE_SYMBOLS = ["BTC", "ETH", "SOL"];
 
 /** Thrown when an unkeyed caller asks for something the sample cannot serve.
@@ -53,11 +57,45 @@ export const SAMPLE_SYMBOLS = ["BTC", "ETH", "SOL"];
  *  whole point: the invitation has to appear where the developer is looking. */
 export class NeedsKey extends Error {}
 
-const NEEDS_KEY_TEXT =
-  "This request needs a Pulse Verity developer key. Create a free developer account at " +
-  "https://thepulse.markets/developers and verify your email to create a key. " +
-  "Set PULSE_API_KEY in your MCP client's private configuration and restart; do not share the key in chat. " +
-  "Without a key this server still answers get_index_price for " + SAMPLE_SYMBOLS.join(", ") + ".";
+/** Thrown when the keyless sample answers 401 KEY_REQUIRED: this network's
+ *  daily samples are spent. Only validated fields survive from the response. */
+export class KeyRequired extends Error {
+  readonly details: KeyRequiredDetails;
+  constructor(details: KeyRequiredDetails) {
+    super("KEY_REQUIRED");
+    const resetAt = safeIsoTimestamp(details.resetAt);
+    const limit = Number.isInteger(details.limit) && details.limit! >= 1 && details.limit! <= 1000 ? details.limit : undefined;
+    this.details = { code: "KEY_REQUIRED", ...(resetAt ? { resetAt } : {}), ...(limit ? { limit } : {}) };
+  }
+}
+
+const SAMPLE_LIST = SAMPLE_SYMBOLS.slice(0, -1).join(", ") + " and " + SAMPLE_SYMBOLS[SAMPLE_SYMBOLS.length - 1];
+// URLs are followed by a space, never by punctuation a reader could copy into the link.
+const ACCOUNT_TEXT =
+  "Sign up at " + DEVELOPER_SIGNUP_URL + " (Developer plan, no charge; Continue with Google skips the email step). " +
+  "The key goes in PULSE_API_KEY in the MCP client's private configuration, followed by a restart; it never belongs in chat. " +
+  "Alternatively, connect the hosted server at " + HOSTED_MCP_URL + " and sign in, with no key to copy.";
+
+export const NEEDS_KEY_TEXT =
+  "Note for the user: this request needs a Pulse Verity developer key. " +
+  "Without one, this server answers get_index_price with limited keyless samples for " + SAMPLE_LIST + ". " +
+  "A Pulse Verity developer account gives access to every supported asset, batch reads and recorded prints, " +
+  "within the account's allowance. " + ACCOUNT_TEXT;
+
+export function keyRequiredText(details: KeyRequiredDetails = { code: "KEY_REQUIRED" }): string {
+  const { resetAt, limit } = new KeyRequired(details).details;
+  return "Note for the user: the keyless Pulse Verity samples for this network are used up for today" +
+    (limit ? " (" + limit + " per UTC day)" : "") + "; " +
+    (resetAt ? "they reset at " + resetAt + " (UTC). " : "they reset with the next UTC day. ") +
+    "A Pulse Verity developer account continues from here, with every supported asset, batch reads and recorded prints, " +
+    "within the account's allowance. " + ACCOUNT_TEXT +
+    " Repeating the request before the reset returns this same answer.";
+}
+
+const KEYLESS_INSTRUCTIONS =
+  "Pulse Verity is running without a developer key. Note for the user: get_index_price answers limited keyless samples for " +
+  SAMPLE_LIST + ", a small number per network each UTC day, and verify_print works without a key. " +
+  "Other assets, batch reads, recorded prints and feedback need a Pulse Verity developer account. " + ACCOUNT_TEXT;
 type ApiPath = typeof API_PATHS[number];
 export type ApiClient = (path: ApiPath, params?: Record<string, string>, feedback?: FeedbackInput) => Promise<Record<string, unknown>>;
 
@@ -274,6 +312,7 @@ export function describeApiError(error: unknown): string {
   // A missing key is not a failure to hide behind a generic sentence — it is
   // the one message that has to reach the person, so it passes through whole.
   if (error instanceof NeedsKey) return error.message;
+  if (error instanceof KeyRequired) return keyRequiredText(error.details);
   return "Error: the Pulse Verity Index request or verification could not complete. Check the inputs and connection, then retry shortly.";
 }
 
@@ -300,8 +339,12 @@ const PLACEHOLDER_KEYS = new Set([
   "pidx_", "changeme", "xxx", "none", "null", "undefined"
 ]);
 
+/** Whether a client built by createApiClient holds a usable key; read by createIndexServer. */
+const clientKeyState = new WeakMap<ApiClient, boolean>();
+
 export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): ApiClient {
-  return async (path, params = {}, feedback) => {
+  const hasKey = hasUsableKey(apiKey);
+  const client: ApiClient = async (path, params = {}, feedback) => {
     if (!API_PATHS.includes(path)) throw new Error("Unsupported API path");
     const isFeedback = path === "/api/index/v1/feedback";
     if (feedback !== undefined && !isFeedback) throw new Error("Unexpected write payload");
@@ -312,7 +355,6 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
       if (containsFeedbackTranscript(feedback)) throw new FeedbackFailure("FEEDBACK_INVALID");
       if (containsFeedbackSecret(feedback)) throw new FeedbackFailure("FEEDBACK_SENSITIVE");
     }
-    const hasKey = hasUsableKey(apiKey);
     // Without a key: a current price for a major becomes the public sample,
     // and everything else says so in words the caller will actually read.
     if (!hasKey && path !== "/api/index/v1/pubkey") {
@@ -328,7 +370,7 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
     const query = new URLSearchParams(params).toString();
     const response = await fetcher(API_BASE + path + (query ? "?" + query : ""), {
       method: isFeedback ? "POST" : "GET",
-      headers: { Accept: "application/json", ...(keyed ? { Authorization: "Bearer " + apiKey } : {}), ...(isFeedback ? { "Content-Type": "application/json" } : {}) },
+      headers: { Accept: "application/json", "User-Agent": USER_AGENT, ...(keyed ? { Authorization: "Bearer " + apiKey } : {}), ...(isFeedback ? { "Content-Type": "application/json" } : {}) },
       ...(isFeedback ? { body: JSON.stringify(feedback) } : {}),
       redirect: "error",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
@@ -336,6 +378,14 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
     if (!response.ok) {
       if (isFeedback) throw await feedbackFailure(response);
       if (response.status === 429) throw new ApiFailure(response.status, await readQuotaDetails(response));
+      // No key was configured, so "the API key was refused" would be false.
+      // KEY_REQUIRED means the keyless daily samples are spent; the text and
+      // link are rebuilt here, never forwarded. A configured key's 401 below
+      // keeps its existing meaning.
+      if (response.status === 401 && !hasKey) {
+        const details = await readKeyRequiredDetails(response);
+        throw details ? new KeyRequired(details) : new NeedsKey(NEEDS_KEY_TEXT);
+      }
       await response.body?.cancel();
       throw new ApiFailure(response.status);
     }
@@ -366,6 +416,8 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid API response");
     return body as Record<string, unknown>;
   };
+  clientKeyState.set(client, hasKey);
+  return client;
 }
 
 interface KeyRing { keys: Map<string, string>; }
@@ -478,7 +530,11 @@ const asError = (error: unknown, requestId: string) => {
       : ["FEEDBACK_INVALID", "FEEDBACK_SENSITIVE"].includes(error.code) ? "check_input" : retryable ? "wait" : "report_issue";
     detail = { code: error.code, nextAction, retryable, ...(error.retryAfterSeconds ? { retryAfterSeconds: error.retryAfterSeconds } : {}) };
   } else if (error instanceof ApiFailure && error.status === 429) detail = { ...quotaErrorGuidance(error.quota).error };
-  else if (error instanceof NeedsKey) detail = { code: "NO_KEY", nextAction: "reconnect", retryable: false };
+  else if (error instanceof NeedsKey) detail = { code: "NO_KEY", nextAction: "get_key", retryable: false,
+    getKeyUrl: DEVELOPER_SIGNUP_URL, hostedServerUrl: HOSTED_MCP_URL };
+  else if (error instanceof KeyRequired) detail = { code: "KEY_REQUIRED", nextAction: "get_key", retryable: false,
+    getKeyUrl: DEVELOPER_SIGNUP_URL, hostedServerUrl: HOSTED_MCP_URL,
+    ...(error.details.resetAt ? { resetAt: error.details.resetAt } : {}) };
   else if (error instanceof InvalidResponse) detail = { code: "INVALID_RESPONSE", nextAction: "report_issue", retryable: false };
   else if (error instanceof ApiFailure) {
     const choices: Record<number, [string, string, boolean]> = {
@@ -494,8 +550,19 @@ const asError = (error: unknown, requestId: string) => {
 };
 const readAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 
-export function createIndexServer(api: ApiClient = createApiClient(process.env.PULSE_API_KEY || "")): McpServer {
-  const server = new McpServer({ name: "pulse-verity", version: SERVER_VERSION });
+export interface IndexServerOptions {
+  /** Overrides key detection; otherwise read from a createApiClient client, or PULSE_API_KEY. */
+  hasKey?: boolean;
+}
+
+export function createIndexServer(api?: ApiClient, options: IndexServerOptions = {}): McpServer {
+  const envKey = process.env.PULSE_API_KEY || "";
+  if (!api) api = createApiClient(envKey);
+  const hasKey = options.hasKey ?? clientKeyState.get(api) ?? hasUsableKey(envKey);
+  // Instructions only matter before a key exists: they tell the agent what the
+  // keyless sample is and how the person connects. A keyed server sends none.
+  const server = new McpServer({ name: "pulse-verity", version: SERVER_VERSION },
+    hasKey ? {} : { instructions: KEYLESS_INSTRUCTIONS });
   const keys = new PublicKeyCache(() => api("/api/index/v1/pubkey"));
   const read = async (tool: ReadToolName, path: ApiPath, params: Record<string, string>) => {
     const requestId = crypto.randomUUID();
@@ -505,19 +572,19 @@ export function createIndexServer(api: ApiClient = createApiClient(process.env.P
 
   server.registerTool("get_index_price", {
     title: "Get Pulse Verity Index Price",
-    description: "Get a current signed crypto index price from /api/index/v1/price. Returns symbol, price, optional priceText, at, grade, signature, kid and sig. Preserve priceText exactly for verify_print. Optional tier, confidence, dispersionBps, interval, sources, engine and cadence describe the observation. Pass the whole print including v2 to verify_print; require recordValid=true before trusting quality fields. Coverage changes: use list_index_assets to discover assets. A stale or unavailable response means no current price, never zero.",
+    description: "Get a current signed crypto index price from /api/index/v1/price. Returns symbol, price, optional priceText, at, grade, signature, kid and sig. Preserve priceText exactly for verify_print. Optional tier, confidence, dispersionBps, interval, sources, engine and cadence describe the observation. Pass the whole print including v2 to verify_print; require recordValid=true before trusting quality fields. Coverage changes: use list_index_assets to discover assets. A stale or unavailable response means no current price, never zero. Without a developer key, only limited daily BTC, ETH and SOL samples are served.",
     inputSchema: { symbol: SymbolSchema }, outputSchema: toolOutputShape("get_index_price"), annotations: readAnnotations
   }, ({ symbol }) => read("get_index_price", "/api/index/v1/price", { symbol }));
 
   server.registerTool("get_index_batch", {
     title: "Get Pulse Verity Index Batch",
-    description: "Read up to 100 crypto symbols in one /api/index/v1/batch request. Returns observations with individually signed successful rows and per-symbol errors for unavailable rows. Your API tier may allow fewer symbols. Verify each successful row with verify_print and require recordValid=true before trusting its quality fields. Surrounding batch metadata is unsigned. No automatic retries.",
+    description: "Read up to 100 crypto symbols in one /api/index/v1/batch request. Returns observations with individually signed successful rows and per-symbol errors for unavailable rows. Your API tier may allow fewer symbols. Verify each successful row with verify_print and require recordValid=true before trusting its quality fields. Surrounding batch metadata is unsigned. No automatic retries. Needs a developer key (PULSE_API_KEY) or the hosted server.",
     inputSchema: { symbols: z.array(SymbolSchema).min(1).max(100) }, outputSchema: toolOutputShape("get_index_batch"), annotations: readAnnotations
   }, ({ symbols }) => read("get_index_batch", "/api/index/v1/batch", { symbols: [...new Set(symbols.map((symbol) => symbol.toUpperCase()))].join(",") }));
 
   server.registerTool("list_index_assets", {
     title: "List Pulse Verity Index Assets",
-    description: "Read one bounded page from /api/index/v1/verity/catalog. Discover crypto symbols and their current coverage status and measured cadence. Catalog rows, prices and metadata are unsigned: use get_index_price or get_index_batch for signed receipts. Availability changes; total is a catalog count, not a count of fresh prices. No automatic pagination.",
+    description: "Read one bounded page from /api/index/v1/verity/catalog. Discover crypto symbols and their current coverage status and measured cadence. Catalog rows, prices and metadata are unsigned: use get_index_price or get_index_batch for signed receipts. Availability changes; total is a catalog count, not a count of fresh prices. No automatic pagination. Needs a developer key (PULSE_API_KEY) or the hosted server.",
     inputSchema: {
       limit: z.number().int().min(1).max(100).default(50),
       offset: z.number().int().min(0).max(100_000).default(0),
@@ -530,7 +597,7 @@ export function createIndexServer(api: ApiClient = createApiClient(process.env.P
 
   server.registerTool("get_settlement_print", {
     title: "Get Recorded Print",
-    description: "Get the recorded signed index print nearest a requested time from /api/index/v1/print. Accepts ISO-8601 or epoch milliseconds. Check deltaMs: it is the distance between your requested time and the sampled print. Sampling and retention are bounded; a recorded print need not equal a separate live read. Preserve the whole print, including priceText, kid and v2, for verify_print. Require recordValid=true before trusting quality fields. Request-envelope fields such as deltaMs are unsigned.",
+    description: "Get the recorded signed index print nearest a requested time from /api/index/v1/print. Accepts ISO-8601 or epoch milliseconds. Check deltaMs: it is the distance between your requested time and the sampled print. Sampling and retention are bounded; a recorded print need not equal a separate live read. Preserve the whole print, including priceText, kid and v2, for verify_print. Require recordValid=true before trusting quality fields. Request-envelope fields such as deltaMs are unsigned. Needs a developer key (PULSE_API_KEY) or the hosted server.",
     inputSchema: {
       symbol: SymbolSchema,
       at: SafeText(40).refine((value) => {
@@ -542,7 +609,7 @@ export function createIndexServer(api: ApiClient = createApiClient(process.env.P
 
   server.registerTool("verify_print", {
     title: "Verify a Signed Print",
-    description: "Verify a signed print locally with ECDSA P-256/SHA-256. Legacy valid authenticates only the v1 canonical price fields. Pass the whole print including v2 to authenticate its complete live, archive or daily-close index record; agents using sources, confidence, interval or cadence must require recordValid=true. Live records sign 18 fields; archive records sign 13 without freshness ages, and daily-close records add signed assetId and closeDay. v2.signedFields lists exactly what is authenticated. kind selects the format and is not signed. Added non-null freshness ages invalidate archived verification. verificationScope is full-record only when both signatures and all required fields match, price-only for a valid v1 print without v2, or invalid otherwise. metadataSigned equals recordValid. deltaMs and surrounding metadata remain unsigned. Public keys come from /api/index/v1/pubkey, cached five minutes with refresh at most every 30 seconds. Each supplied kid selects only its exact published key; v1 prints without kid use the bounded ring. No API key is sent to the key endpoint. Invalid verification can mean alteration or a key no longer published.",
+    description: "Verify a signed print locally with ECDSA P-256/SHA-256. Legacy valid authenticates only the v1 canonical price fields. Pass the whole print including v2 to authenticate its complete live, archive or daily-close index record; agents using sources, confidence, interval or cadence must require recordValid=true. Live records sign 18 fields; archive records sign 13 without freshness ages, and daily-close records add signed assetId and closeDay. v2.signedFields lists exactly what is authenticated. kind selects the format and is not signed. Added non-null freshness ages invalidate archived verification. verificationScope is full-record only when both signatures and all required fields match, price-only for a valid v1 print without v2, or invalid otherwise. metadataSigned equals recordValid. deltaMs and surrounding metadata remain unsigned. Public keys come from /api/index/v1/pubkey, cached five minutes with refresh at most every 30 seconds. Each supplied kid selects only its exact published key; v1 prints without kid use the bounded ring. No API key is sent to the key endpoint. Invalid verification can mean alteration or a key no longer published. Works without a developer key.",
     inputSchema: PrintFields, outputSchema: toolOutputShape("verify_print"),
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
   }, async (print) => {
@@ -558,7 +625,7 @@ export function createIndexServer(api: ApiClient = createApiClient(process.env.P
   });
   server.registerTool("submit_verity_feedback", {
     title: "Submit Verity Feedback",
-    description: "Submit a reproducible Verity API or MCP bug, missing capability or data-quality report for human review. Requires a developer API key and an enabled feedback service. Include the failed call's requestId when available. Do not send secrets, personal information or conversation transcripts. Saves a private report; does not change prices, start trades or open or merge a PR. Returns a tracking receipt only after storage succeeds.",
+    description: "Submit a reproducible Verity API or MCP bug, missing capability or data-quality report for human review. Requires a developer key (PULSE_API_KEY) or the hosted server, and an enabled feedback service. Include the failed call's requestId when available. Do not send secrets, personal information or conversation transcripts. Saves a private report; does not change prices, start trades or open or merge a PR. Returns a tracking receipt only after storage succeeds.",
     inputSchema: feedbackInputSchema,
     outputSchema: { success: z.literal(true).optional(), feedback: feedbackReceiptSchema.optional(), duplicate: z.boolean().optional(), requestId: requestIdSchema, error: errorSchema.optional() },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
@@ -597,7 +664,8 @@ if (isMain) {
     () => console.error(
       "Pulse Verity Index MCP server " + SERVER_VERSION + " running" +
       (keyed ? " (developer key detected)"
-             : " — NO KEY: serving the free sample (BTC, ETH, SOL). Free key: https://thepulse.markets/developers")
+             : " without a developer key: limited daily " + SAMPLE_LIST + " samples. Developer account: " +
+               DEVELOPER_SIGNUP_URL + " or connect the hosted server (sign in, no key to copy): " + HOSTED_MCP_URL)
     ),
     () => { console.error("Server connection failed."); process.exit(1); }
   );
