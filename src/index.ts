@@ -16,7 +16,7 @@ import type { ReadToolName } from "./mcpContracts.js";
 import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, containsFeedbackTranscript, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
 import type { FeedbackInput } from "./feedbackContract.js";
 
-export const SERVER_VERSION = "1.3.5";
+export const SERVER_VERSION = "1.3.6";
 export const USER_AGENT = "pulse-verity/" + SERVER_VERSION;
 export const API_BASE = "https://mcp.thepulse.markets";
 /** Built into the package; never taken from an API response. */
