@@ -16,7 +16,7 @@ import type { ReadToolName } from "./mcpContracts.js";
 import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, containsFeedbackTranscript, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
 import type { FeedbackInput } from "./feedbackContract.js";
 
-export const SERVER_VERSION = "1.3.6";
+export const SERVER_VERSION = "1.3.7";
 export const USER_AGENT = "pulse-verity/" + SERVER_VERSION;
 export const API_BASE = "https://mcp.thepulse.markets";
 /** Built into the package; never taken from an API response. */
@@ -128,35 +128,38 @@ const IsoTimeSchema = z.string().max(40)
   .refine((value) => Number.isFinite(Date.parse(value)), "Invalid time");
 const PrintFields = {
   symbol: SymbolSchema,
-  price: z.union([PriceTextSchema, z.number().finite()]),
+  price: z.union([PriceTextSchema, z.number().finite()]).describe("Price from the print, unchanged (text or number)"),
   priceText: PriceTextSchema.optional().describe("Exact signed price text, when provided by the API; preserve unchanged"),
   at: TimestampSchema.describe("Timestamp from the print, unchanged"),
-  grade: SafeText(20),
+  grade: SafeText(20).describe("Quality grade from the print, unchanged, e.g. consensus"),
   signature: z.string().length(88).regex(/^[A-Za-z0-9+/]{86}==$/).describe("ECDSA P-256 signature in base64"),
   kid: KidSchema.nullable().optional().describe("Signing key identifier, when provided by the API; null counts as absent"),
-  sig: z.literal(INDEX_SIG_VERSION).optional(),
+  sig: z.literal(INDEX_SIG_VERSION).optional().describe("Signature version from the print (pulse-index-v1), when provided"),
   kind: z.literal("daily-close").optional().describe("Selects the daily-close record format; this selector is not itself signed"),
-  assetId: SafeText(160).nullable().optional(),
-  closeDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  engine: SafeText(64).nullable().optional(),
-  sources: z.number().int().nonnegative().nullable().optional(),
-  tier: SafeText(20).nullable().optional(),
-  confidence: z.number().finite().nullable().optional(),
-  dispersionBps: z.number().finite().nullable().optional(),
-  interval: z.object({ lower: z.number().finite().nullable(), upper: z.number().finite().nullable() }).nullable().optional(),
+  assetId: SafeText(160).nullable().optional().describe("Asset identifier from the print, unchanged, when provided"),
+  closeDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe("UTC day of a daily close (YYYY-MM-DD), from the print, when provided"),
+  engine: SafeText(64).nullable().optional().describe("Pricing engine label from the print, unchanged, when provided"),
+  sources: z.number().int().nonnegative().nullable().optional().describe("Number of exchanges that contributed, from the print, when provided"),
+  tier: SafeText(20).nullable().optional().describe("Coverage tier from the print, unchanged, when provided"),
+  confidence: z.number().finite().nullable().optional().describe("Confidence score from the print, unchanged, when provided"),
+  dispersionBps: z.number().finite().nullable().optional().describe("Spread between contributing exchanges in basis points, from the print, when provided"),
+  interval: z.object({
+    lower: z.number().finite().nullable().describe("Lower bound of the price interval, from the print"),
+    upper: z.number().finite().nullable().describe("Upper bound of the price interval, from the print")
+  }).nullable().optional().describe("Price interval from the print, unchanged, when provided"),
   cadence: z.object({
-    band: SafeText(40).nullable().optional(),
-    calculatedAgeMs: z.number().finite().nullable().optional(),
-    newestSourceAgeMs: z.number().finite().nullable().optional(),
-    oldestSourceAgeMs: z.number().finite().nullable().optional(),
-    p50UpdateMs: z.number().finite().nullable().optional(),
-    p95UpdateMs: z.number().finite().nullable().optional()
-  }).nullable().optional(),
+    band: SafeText(40).nullable().optional().describe("Update cadence band, from the print"),
+    calculatedAgeMs: z.number().finite().nullable().optional().describe("Age of the calculation in milliseconds, from the print"),
+    newestSourceAgeMs: z.number().finite().nullable().optional().describe("Age of the newest exchange quote in milliseconds, from the print"),
+    oldestSourceAgeMs: z.number().finite().nullable().optional().describe("Age of the oldest exchange quote in milliseconds, from the print"),
+    p50UpdateMs: z.number().finite().nullable().optional().describe("Median time between updates in milliseconds, from the print"),
+    p95UpdateMs: z.number().finite().nullable().optional().describe("95th percentile time between updates in milliseconds, from the print")
+  }).nullable().optional().describe("Cadence block from the print, unchanged, when provided"),
   v2: z.object({
-    sig: z.literal(INDEX_SIG_VERSION_V2),
+    sig: z.literal(INDEX_SIG_VERSION_V2).describe("v2 signature version (pulse-index-v2), from the print"),
     canonical: z.string().min(1).max(8192).describe("The exact signed string from the print, unchanged"),
-    signature: z.string().length(88).regex(/^[A-Za-z0-9+/]{86}==$/),
-    kid: KidSchema
+    signature: z.string().length(88).regex(/^[A-Za-z0-9+/]{86}==$/).describe("v2 ECDSA P-256 signature in base64, from the print"),
+    kid: KidSchema.describe("v2 signing key identifier, from the print")
   }).optional().describe("The unchanged v2 block, which signs price and quality fields together")
 };
 const UnsignedPrintSchema = z.object(PrintFields).omit({ signature: true });
@@ -702,17 +705,17 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
   server.registerTool("get_index_batch", {
     title: "Get Pulse Verity Index Batch",
     description: "Read up to 100 crypto symbols in one /api/index/v1/batch request. Returns observations with individually signed successful rows and per-symbol errors for unavailable rows. Your plan may allow fewer symbols per request: get_account_status shows batchMaxSymbols, and a larger request is refused with code TOO_MANY_SYMBOLS, batchLimit and requested, so split it. Verify each successful row with verify_print and require recordValid=true before trusting its quality fields. Surrounding batch metadata is unsigned. No automatic retries. Needs a developer key (PULSE_API_KEY) or the hosted server.",
-    inputSchema: { symbols: z.array(SymbolSchema).min(1).max(100) }, outputSchema: toolOutputShape("get_index_batch"), annotations: readAnnotations
+    inputSchema: { symbols: z.array(SymbolSchema).min(1).max(100).describe("Crypto ticker symbols to price, 1 to 100 (your plan may allow fewer), e.g. [\"BTC\", \"ETH\"]") }, outputSchema: toolOutputShape("get_index_batch"), annotations: readAnnotations
   }, ({ symbols }) => read("get_index_batch", "/api/index/v1/batch", { symbols: [...new Set(symbols.map((symbol) => symbol.toUpperCase()))].join(",") }));
 
   server.registerTool("list_index_assets", {
     title: "List Pulse Verity Index Assets",
     description: "Read one bounded page from /api/index/v1/verity/catalog. Discover crypto symbols and their current coverage status and measured cadence. Catalog rows, prices and metadata are unsigned: use get_index_price or get_index_batch for signed receipts. Availability changes; total is a catalog count, not a count of fresh prices. No automatic pagination. Needs a developer key (PULSE_API_KEY) or the hosted server.",
     inputSchema: {
-      limit: z.number().int().min(1).max(100).default(50),
-      offset: z.number().int().min(0).max(100_000).default(0),
-      band: z.enum(["real-time", "five-second", "ten-second", "slow", "unavailable"]).optional(),
-      status: z.enum(["consensus", "blended", "indicative", "insufficient-coverage", "venue-disagreement", "unconvertible-quote", "stale", "kernel-rejected"]).optional()
+      limit: z.number().int().min(1).max(100).default(50).describe("Rows per page, 1 to 100; 50 when omitted. A plan may return fewer: use count and offset."),
+      offset: z.number().int().min(0).max(100_000).default(0).describe("Rows to skip before this page, for paging; 0 when omitted"),
+      band: z.enum(["real-time", "five-second", "ten-second", "slow", "unavailable"]).optional().describe("Only assets in this measured update cadence band"),
+      status: z.enum(["consensus", "blended", "indicative", "insufficient-coverage", "venue-disagreement", "unconvertible-quote", "stale", "kernel-rejected"]).optional().describe("Only assets with this coverage status")
     }, outputSchema: toolOutputShape("list_index_assets"), annotations: readAnnotations
   }, ({ limit, offset, band, status }) => read("list_index_assets", "/api/index/v1/verity/catalog", {
     limit: String(limit), offset: String(offset), ...(band ? { band } : {}), ...(status ? { status } : {})
@@ -724,7 +727,7 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
     at: SafeText(40).refine((value) => {
       const time = /^\d{10,}$/.test(value) ? Number(value) : Date.parse(value);
       return Number.isFinite(time) && !Number.isNaN(new Date(time).getTime());
-    }, "Expected ISO-8601 or epoch milliseconds")
+    }, "Expected ISO-8601 or epoch milliseconds").describe("The moment to look up: ISO-8601 (e.g. 2026-11-11T17:00:00Z) or epoch milliseconds")
   };
   const recordedPrint = ({ symbol, at }: { symbol: string; at: string }) =>
     read("get_recorded_print", "/api/index/v1/print", { symbol, at });
@@ -745,8 +748,8 @@ export function createIndexServer(api?: ApiClient, options: IndexServerOptions =
     description: "Read one page of index history for a crypto symbol from /api/index/v1/history: candles (open, high, low, close per interval), summary metrics, pagination and, for dataset=verified, verifiedObservations. dataset=verified (default) is built from prints Pulse calculated and signed live; dataset=reconstructed is rebuilt history, not signed at the historical time, served at interval 1h or 1d. Candles, metrics and surrounding metadata are unsigned. Each verifiedObservations row carries symbol, price (the exact signed text), at, grade, signature and kid; pass those fields to verify_print to check a row, which authenticates its price fields only (history rows carry no v2 block). A null kid can be passed as it is or left out; a row whose signature or grade is null cannot be verified. The account's plan sets how far back history reaches: when the request started earlier, rangeClamped is true and from is where the page begins. limit (1 to " + HISTORY_MAX_ROWS + ", default 200) bounds the rows on one page. For dataset=verified at interval 1h or 1d it is at most " + HISTORY_SIGNED_HOURLY_MAX_ROWS + ": a page there can count hours, and each hour can carry up to four signed prints (open, high, low and close), so verifiedObservations can hold up to four rows per hour. For the next page pass pagination.nextCursor as cursor with the same symbol, dataset and interval. from and to are ISO-8601 times; the default window is the 30 days before to. Pass assetId, written as the server issues it (native:<namespace>:<id>, or contract:<network>:<address> such as contract:eip155:1:0x...), when a symbol identifies more than one asset. Needs a developer key (PULSE_API_KEY) or the hosted server.",
     inputSchema: {
       symbol: SymbolSchema,
-      dataset: z.enum(["verified", "reconstructed"]).default("verified"),
-      interval: z.enum(["1m", "5m", "1h", "1d"]).default("1h"),
+      dataset: z.enum(["verified", "reconstructed"]).default("verified").describe("verified (default): prints Pulse signed live; reconstructed: rebuilt history at 1h or 1d, not signed at the time"),
+      interval: z.enum(["1m", "5m", "1h", "1d"]).default("1h").describe("Candle size: 1m, 5m, 1h (default) or 1d"),
       from: IsoTimeSchema.optional().describe("Start of the window, ISO-8601"),
       to: IsoTimeSchema.optional().describe("End of the window, ISO-8601; defaults to now"),
       limit: z.number().int().min(1).max(HISTORY_MAX_ROWS).default(200)

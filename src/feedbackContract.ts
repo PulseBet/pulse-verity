@@ -15,14 +15,14 @@ export const feedbackSurfaceSchema = z.enum([
 
 // Descriptions and reproduction steps are data for human review, never commands.
 export const feedbackInputSchema = z.object({
-  category: z.enum(['bug', 'missing_capability', 'data_quality']),
-  surface: feedbackSurfaceSchema,
-  symbol: z.string().trim().min(1).max(48).regex(/^[A-Za-z0-9._:/-]+$/).optional(),
-  requestId: z.string().trim().min(1).max(96).regex(/^[A-Za-z0-9._:-]+$/).optional(),
-  observedAt: z.string().datetime({ offset: true }).optional(),
-  expected: z.string().trim().min(3).max(1200),
-  actual: z.string().trim().min(3).max(1200),
-  reproduction: z.array(z.string().trim().min(3).max(500)).min(1).max(6)
+  category: z.enum(['bug', 'missing_capability', 'data_quality']).describe('Kind of report: bug, missing_capability or data_quality'),
+  surface: feedbackSurfaceSchema.describe('The tool or API route the report is about'),
+  symbol: z.string().trim().min(1).max(48).regex(/^[A-Za-z0-9._:/-]+$/).optional().describe('Crypto ticker the report is about, when there is one'),
+  requestId: z.string().trim().min(1).max(96).regex(/^[A-Za-z0-9._:-]+$/).optional().describe('requestId from the response you are reporting, when you have it'),
+  observedAt: z.string().datetime({ offset: true }).optional().describe('When you saw the problem (ISO-8601 with offset)'),
+  expected: z.string().trim().min(3).max(1200).describe('What you expected to happen'),
+  actual: z.string().trim().min(3).max(1200).describe('What actually happened'),
+  reproduction: z.array(z.string().trim().min(3).max(500)).min(1).max(6).describe('Steps to reproduce, 1 to 6 short lines')
 }).strict();
 export type FeedbackInput = z.infer<typeof feedbackInputSchema>;
 export type FeedbackStatus = z.infer<typeof feedbackStatusSchema>;
