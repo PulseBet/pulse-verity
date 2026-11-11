@@ -52,7 +52,7 @@ export const verificationSchema = z.object({
   metadataSigned: z.boolean(), verifiedWithKid: kid.nullable(), checked: text(512), keySource: text(256),
   v2: z.object({valid: z.boolean(), signatureValid: z.boolean(), fieldsMatch: z.boolean(),
     mismatches: z.array(text(80)).max(18),
-    signedFields: z.record(z.union([z.string(), finite, z.boolean(), z.null()])).nullable(),
+    signedFields: z.record(z.string(), z.union([z.string(), finite, z.boolean(), z.null()])).nullable(),
     verifiedWithKid: kid.nullable()
   }).nullable().optional()
 });
