@@ -33,10 +33,10 @@ export const SAMPLE_SIGNUP_URL = npmSignupUrl("sample-npm");
 export const INSTRUCTIONS_SIGNUP_URL = npmSignupUrl("instructions-npm");
 /** The start-up line on stderr. */
 export const BOOT_SIGNUP_URL = npmSignupUrl("boot-npm");
-/** The daily-cap answer (KEY_REQUIRED) only; the record reads mcp-npm/cap-npm.
- *  No src parameter: the portal takes ref first as the source, so src would
- *  never be read. */
-export const CAP_SIGNUP_URL = npmSignupUrl("cap-npm");
+/** The daily-cap answer (KEY_REQUIRED) only, tagged src=cap as asked (23 Nov 2026 PT). No ref on this one link, so
+ *  src is the source (the portal and server read ref || src): the record reads cap/cap-npm, apart from the server's
+ *  own cap answer (cap) and every other npm surface (mcp-npm/<campaign>). */
+export const CAP_SIGNUP_URL = "https://thepulse.markets/developers?src=cap&utm_campaign=cap-npm#/signup";
 export const HOSTED_MCP_URL = "https://mcp.thepulse.markets/api/index/mcp";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const INDEX_SIG_VERSION_V2 = "pulse-index-v2";

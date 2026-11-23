@@ -29,7 +29,7 @@ const ok = (name, cond, detail = '') => {
 // ── 0. Every portal link the package prints is tagged by surface (1.3.8) ──
 // The portal and the server keep ref as the sign-up's source and utm_campaign
 // as its campaign, so each link reads mcp-npm/<campaign> in the record.
-const CAP_LINK = 'https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=cap-npm#/signup';
+const CAP_LINK = 'https://thepulse.markets/developers?src=cap&utm_campaign=cap-npm#/signup';
 const capLine = (limitPart, resetPart) => 'Note for the user: the keyless Pulse Verity samples for this network are used up for today'
   + limitPart + '; ' + resetPart
   + 'Get a key in 30 seconds on the Developer plan, no charge: ' + CAP_LINK
@@ -46,12 +46,13 @@ const BARE_CAP_LINE = capLine('', 'they reset with the next UTC day. ');
   for (const [campaign, link] of Object.entries(links)) {
     const url = new URL(link);
     ok(campaign + ': the link is the portal sign-up tab', url.origin + url.pathname === 'https://thepulse.markets/developers' && url.hash === '#/signup', link);
-    ok(campaign + ': ref=mcp-npm is the source', url.searchParams.get('ref') === 'mcp-npm', link);
+    if (campaign === 'cap-npm') ok('cap-npm: src=cap is the source and no ref overrides it', url.searchParams.get('src') === 'cap' && !url.searchParams.has('ref'), link);
+    else ok(campaign + ': ref=mcp-npm is the source', url.searchParams.get('ref') === 'mcp-npm', link);
     ok(campaign + ': utm_campaign names the surface', url.searchParams.get('utm_campaign') === campaign, link);
   }
   ok('every surface has its own link', new Set(Object.values(links)).size === Object.keys(links).length);
   ok('the cap link is exactly the 1.3.8 link', CAP_SIGNUP_URL === CAP_LINK, CAP_SIGNUP_URL);
-  ok('no link carries a src parameter the portal never reads', Object.values(links).every((link) => !new URL(link).searchParams.has('src')));
+  ok('only the cap link carries src (src=cap); every other link is ref=mcp-npm', Object.values(links).every((link) => (new URL(link).searchParams.get('src') === 'cap') === (link === CAP_SIGNUP_URL)));
   const full = keyRequiredText({ code: 'KEY_REQUIRED', resetAt: NEXT_RESET, limit: 3 });
   ok('the cap line is exactly the package line with reason, limit and reset', full === EXACT_CAP_LINE, full);
   ok('without details the cap line still says why and when', keyRequiredText() === BARE_CAP_LINE, keyRequiredText());
@@ -207,7 +208,7 @@ const unauthorized = (body, headers = {}) => new Response(body, { status: 401, h
     ok('KEY_REQUIRED is not BAD_KEY', !/API key was refused/.test(text) && error?.code !== 'BAD_KEY', text);
     ok('the text is exactly the one-line cap answer', text === EXACT_CAP_LINE && !/[\r\n]/.test(text), text);
     ok('the text says the samples are used up, the limit and the reset', text.includes('used up for today') && text.includes('(3 per UTC day)') && text.includes(NEXT_RESET), text);
-    ok('the text carries the cap link and the hosted option', text.includes(CAP_SIGNUP_URL) && text.includes('ref=mcp-npm') && text.includes(HOSTED_MCP_URL), text);
+    ok('the text carries the cap link and the hosted option', text.includes(CAP_SIGNUP_URL) && text.includes('src=cap') && text.includes(HOSTED_MCP_URL), text);
     ok('the cap link is followed by a space, never punctuation', text.split(CAP_SIGNUP_URL)[1]?.startsWith(' '), text);
     ok('KEY_REQUIRED structured detail keeps the reset time', error?.resetAt === NEXT_RESET, JSON.stringify(error));
     const whole = JSON.stringify(result);
