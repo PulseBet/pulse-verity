@@ -1,5 +1,7 @@
 # Pulse Verity Index
 
+[![PulseBet/pulse-verity MCP server](https://glama.ai/mcp/servers/PulseBet/pulse-verity/badges/score.svg)](https://glama.ai/mcp/servers/PulseBet/pulse-verity)
+
 ## Start here: connect the hosted server (sign in with Google, no key to copy)
 
 Add `https://mcp.thepulse.markets/api/index/mcp` to your client and sign in with
