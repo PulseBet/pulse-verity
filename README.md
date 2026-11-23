@@ -119,7 +119,7 @@ It exposes read-only data, verification and account tools, and one private feedb
 | `get_index_price(symbol)` | Return the current signed index value. |
 | `get_index_batch(symbols)` | Read up to 100 symbols per request (your plan may allow fewer) with signed successful rows and per-symbol errors. |
 | `list_index_assets(limit, offset, band?, status?)` | Discover one catalog page with coverage and measured cadence. |
-| `get_recorded_print(symbol, at)` | Return the recorded signed print nearest a moment. `get_settlement_print` is its earlier name and still works. |
+| `get_recorded_print(symbol, at)` | Return the recorded signed print nearest a moment. |
 | `get_index_history(symbol, dataset?, interval?, from?, to?, limit?, cursor?, assetId?)` | Read one page of history: candles, summary metrics and, for `dataset: "verified"`, the signed observations behind them. |
 | `get_account_status()` | Show your plan, calls used this UTC month, the monthly limit, the reset time and per-request limits. Does not count toward the allowance. |
 | `verify_print(print)` | Verify a price and its signed quality fields locally with the published public key. |
