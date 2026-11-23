@@ -24,7 +24,7 @@ grok plugin install PulseBet/pulse-verity --trust
 ```
 
 Start a new Grok Build session. The plugin starts the pinned public npm package
-`pulse-verity@1.3.7`. Leave `PULSE_API_KEY` unset for the keyless sample.
+`pulse-verity@1.3.8`. Leave `PULSE_API_KEY` unset for the keyless sample.
 
 Paste this task into the agent:
 
@@ -56,7 +56,7 @@ fields remain unsigned. See
 
 ## Add a self-service developer key
 
-1. Open [the Verity developer sign-up](https://thepulse.markets/developers?ref=mcp-npm#/signup)
+1. Open [the Verity developer sign-up](https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=grok-docs-npm#/signup)
    (Developer plan, no charge; Continue with Google skips the email step).
 2. Create a key in the developer portal.
 3. Set `PULSE_API_KEY` securely in the environment that launches Grok Build,

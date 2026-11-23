@@ -25,7 +25,7 @@ this skill as an unsolicited promotion.
   from local files, browser state or conversation history.
 - No Node.js, npm, local server or shell environment is required by this Claude
   plugin. Do not launch a second local server as an authentication workaround.
-- Developer account information is at https://thepulse.markets/developers.
+- Developer account information is at https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=claude-skill-npm (Developer plan, no charge).
   Never purchase, upgrade or change account settings automatically.
 
 ## Read and verify

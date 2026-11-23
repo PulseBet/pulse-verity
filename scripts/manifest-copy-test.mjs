@@ -12,7 +12,7 @@ const copy = [manifest.description, manifest.long_description,
 
 test("desktop author links to the publisher profile while homepage stays the developer portal", () => {
   assert.equal(manifest.author.url, "https://github.com/PulseBet");
-  assert.equal(manifest.homepage, "https://thepulse.markets/developers");
+  assert.equal(manifest.homepage, "https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=mcpb-npm");
 });
 
 test("desktop copy distinguishes signed receipts from unsigned catalogue metadata", () => {

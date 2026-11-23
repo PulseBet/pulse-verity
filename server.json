@@ -3,7 +3,7 @@
   "name": "io.github.PulseBet/pulse-verity",
   "title": "Pulse Verity",
   "description": "Signed Bitcoin and crypto prices for AI agents: multi-exchange prices anyone can verify offline.",
-  "websiteUrl": "https://thepulse.markets/developers",
+  "websiteUrl": "https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=registry-npm",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/PulseBet/pulse-verity/main/assets/pulse-icon-1024.png",
@@ -17,19 +17,19 @@
     "url": "https://github.com/PulseBet/pulse-verity",
     "source": "github"
   },
-  "version": "1.3.7",
+  "version": "1.3.8",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "pulse-verity",
-      "version": "1.3.7",
+      "version": "1.3.8",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
           "name": "PULSE_API_KEY",
-          "description": "Optional. Leave blank for limited BTC, ETH and SOL samples. For broader requests, use your own developer key from https://thepulse.markets/developers. Access, coverage and usage allowances depend on your account and current availability.",
+          "description": "Optional. Leave blank for limited BTC, ETH and SOL samples. For broader requests, use your own developer key from https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=registry-npm#/signup (Developer plan, no charge). Access, coverage and usage allowances depend on your account and current availability.",
           "isRequired": false,
           "format": "string",
           "isSecret": true

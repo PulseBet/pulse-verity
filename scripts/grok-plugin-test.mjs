@@ -16,7 +16,7 @@ test("Grok identity and version match the released MCP package", () => {
   assert.equal(manifest.version, pkg.version);
   assert.deepEqual(manifest.author, { name: "Pulse" });
   assert.equal(manifest.repository, "https://github.com/PulseBet/pulse-verity");
-  assert.equal(manifest.homepage, "https://thepulse.markets/developers");
+  assert.equal(manifest.homepage, "https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=grok-plugin-npm");
   assert.equal(manifest.license, pkg.license);
 });
 

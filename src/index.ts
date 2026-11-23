@@ -16,11 +16,26 @@ import type { ReadToolName } from "./mcpContracts.js";
 import { feedbackInputSchema, feedbackReceiptSchema, feedbackFailureCodes, containsFeedbackSecret, containsFeedbackTranscript, FEEDBACK_MAX_BYTES } from "./feedbackContract.js";
 import type { FeedbackInput } from "./feedbackContract.js";
 
-export const SERVER_VERSION = "1.3.7";
+export const SERVER_VERSION = "1.3.8";
 export const USER_AGENT = "pulse-verity/" + SERVER_VERSION;
 export const API_BASE = "https://mcp.thepulse.markets";
-/** Built into the package; never taken from an API response. */
-export const DEVELOPER_SIGNUP_URL = "https://thepulse.markets/developers?ref=mcp-npm#/signup";
+/** Every portal link this package prints is built into the package, never taken
+ *  from an API response. Each carries ref=mcp-npm (kept as the sign-up's source)
+ *  and a utm_campaign naming the surface (kept as its campaign), so a sign-up
+ *  reads mcp-npm/<campaign> in the developer acquisition record. */
+const npmSignupUrl = (campaign: string, extra = "") =>
+  "https://thepulse.markets/developers?ref=mcp-npm" + extra + "&utm_campaign=" + campaign + "#/signup";
+/** The no-key answer (NO_KEY): text and getKeyUrl. */
+export const DEVELOPER_SIGNUP_URL = npmSignupUrl("needs-key-npm");
+/** The keyless sample's note and getKey. */
+export const SAMPLE_SIGNUP_URL = npmSignupUrl("sample-npm");
+/** The keyless server instructions sent at MCP initialize. */
+export const INSTRUCTIONS_SIGNUP_URL = npmSignupUrl("instructions-npm");
+/** The start-up line on stderr. */
+export const BOOT_SIGNUP_URL = npmSignupUrl("boot-npm");
+/** The daily-cap answer (KEY_REQUIRED) only. src=cap matches the server's cap
+ *  link; ref wins as the source, so the record reads mcp-npm/cap-npm. */
+export const CAP_SIGNUP_URL = npmSignupUrl("cap-npm", "&src=cap");
 export const HOSTED_MCP_URL = "https://mcp.thepulse.markets/api/index/mcp";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const INDEX_SIG_VERSION_V2 = "pulse-index-v2";
@@ -76,8 +91,8 @@ export class KeyRequired extends Error {
 
 const SAMPLE_LIST = SAMPLE_SYMBOLS.slice(0, -1).join(", ") + " and " + SAMPLE_SYMBOLS[SAMPLE_SYMBOLS.length - 1];
 // URLs are followed by a space, never by punctuation a reader could copy into the link.
-const ACCOUNT_TEXT =
-  "Sign up at " + DEVELOPER_SIGNUP_URL + " (Developer plan, no charge; Continue with Google skips the email step). " +
+const accountText = (signupUrl: string) =>
+  "Sign up at " + signupUrl + " (Developer plan, no charge; Continue with Google skips the email step). " +
   "The key goes in PULSE_API_KEY in the MCP client's private configuration, followed by a restart; it never belongs in chat. " +
   "Alternatively, connect the hosted server at " + HOSTED_MCP_URL + " and sign in, with no key to copy.";
 
@@ -85,16 +100,15 @@ export const NEEDS_KEY_TEXT =
   "Note for the user: this request needs a Pulse Verity developer key. " +
   "Without one, this server answers get_index_price with limited keyless samples for " + SAMPLE_LIST + ". " +
   "A Pulse Verity developer account gives access to every supported asset, batch reads and recorded prints, " +
-  "within the account's allowance. " + ACCOUNT_TEXT;
+  "within the account's allowance. " + accountText(DEVELOPER_SIGNUP_URL);
 
+/** The daily-cap answer: the same one line the server sends, with this package's
+ *  cap link. The reset time and limit stay in structuredContent (resetAt). 2,000 is
+ *  the Developer plan's monthly allowance; change this line if that changes. */
 export function keyRequiredText(details: KeyRequiredDetails = { code: "KEY_REQUIRED" }): string {
-  const { resetAt, limit } = new KeyRequired(details).details;
-  return "Note for the user: the keyless Pulse Verity samples for this network are used up for today" +
-    (limit ? " (" + limit + " per UTC day)" : "") + "; " +
-    (resetAt ? "they reset at " + resetAt + " (UTC). " : "they reset with the next UTC day. ") +
-    "A Pulse Verity developer account continues from here, with every supported asset, batch reads and recorded prints, " +
-    "within the account's allowance. " + ACCOUNT_TEXT +
-    " Repeating the request before the reset returns this same answer.";
+  void new KeyRequired(details); // the details are still validated; the line quotes neither the reset nor the limit
+  return "Get a key in 30 seconds, no charge (2,000 calls/month): " + CAP_SIGNUP_URL +
+    " (it goes in PULSE_API_KEY, never in chat).";
 }
 
 /** The package's own wording for every keyless sample. The server's note and
@@ -103,13 +117,13 @@ export function keyRequiredText(details: KeyRequiredDetails = { code: "KEY_REQUI
 export const KEYLESS_SAMPLE_NOTE =
   "Note for the user: this is a keyless Pulse Verity sample (" + SAMPLE_LIST + " only, a small number per network each UTC day). " +
   "A Pulse Verity developer account gives access to every supported asset, batch reads and recorded prints, " +
-  "within the account's allowance. " + ACCOUNT_TEXT +
+  "within the account's allowance. " + accountText(SAMPLE_SIGNUP_URL) +
   " Anyone can check a signature with the public key, no account needed: https://thepulse.markets/.well-known/pulse-verity-keys.json";
 
 const KEYLESS_INSTRUCTIONS =
   "Pulse Verity is running without a developer key. Note for the user: get_index_price answers limited keyless samples for " +
   SAMPLE_LIST + ", a small number per network each UTC day, and verify_print works without a key. " +
-  "Other assets, batch reads, recorded prints, history, account status and feedback need a Pulse Verity developer account. " + ACCOUNT_TEXT;
+  "Other assets, batch reads, recorded prints, history, account status and feedback need a Pulse Verity developer account. " + accountText(INSTRUCTIONS_SIGNUP_URL);
 type ApiPath = typeof API_PATHS[number];
 export type ApiClient = (path: ApiPath, params?: Record<string, string>, feedback?: FeedbackInput) => Promise<Record<string, unknown>>;
 
@@ -497,7 +511,7 @@ export function createApiClient(apiKey: string, fetcher: typeof fetch = fetch): 
     if (path === "/api/index/v1/sample") {
       const sample = body as Record<string, unknown>;
       if ("note" in sample) sample.note = KEYLESS_SAMPLE_NOTE;
-      if ("getKey" in sample) sample.getKey = DEVELOPER_SIGNUP_URL;
+      if ("getKey" in sample) sample.getKey = SAMPLE_SIGNUP_URL;
     }
     // Past 80% and 95% of the month, a keyed response says so in a header.
     // Parsed strictly; the note the person reads is built by this package.
@@ -643,7 +657,7 @@ const asError = (error: unknown, requestId: string, tool?: string) => {
   else if (error instanceof NeedsKey) detail = { code: "NO_KEY", nextAction: "get_key", retryable: false,
     getKeyUrl: DEVELOPER_SIGNUP_URL, hostedServerUrl: HOSTED_MCP_URL };
   else if (error instanceof KeyRequired) detail = { code: "KEY_REQUIRED", nextAction: "get_key", retryable: false,
-    getKeyUrl: DEVELOPER_SIGNUP_URL, hostedServerUrl: HOSTED_MCP_URL,
+    getKeyUrl: CAP_SIGNUP_URL, hostedServerUrl: HOSTED_MCP_URL,
     ...(error.details.resetAt ? { resetAt: error.details.resetAt } : {}) };
   else if (error instanceof InvalidResponse) detail = { code: "INVALID_RESPONSE", nextAction: "report_issue", retryable: false };
   else if (error instanceof ApiFailure) {
@@ -878,7 +892,7 @@ if (isMain) {
       "Pulse Verity Index MCP server " + SERVER_VERSION + " running" +
       (keyed ? " (developer key detected)"
              : " without a developer key: limited daily " + SAMPLE_LIST + " samples. Developer account: " +
-               DEVELOPER_SIGNUP_URL + " or connect the hosted server (sign in, no key to copy): " + HOSTED_MCP_URL)
+               BOOT_SIGNUP_URL + " or connect the hosted server (sign in, no key to copy): " + HOSTED_MCP_URL)
     ),
     () => { console.error("Server connection failed."); process.exit(1); }
   );

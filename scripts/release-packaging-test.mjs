@@ -137,3 +137,52 @@ test("the desktop release stages the quota module and publishes all Gemini platf
   assert(published.includes('gemini-extension.json" --live'));
   assert(!published.includes("--candidate-tarball"));
 });
+
+// 1.3.8: every developer-portal link this repository ships says where a
+// sign-up came from. The portal and the server keep ref as the source and
+// utm_campaign as the campaign, so each reads mcp-npm/<campaign>. Left
+// untagged on purpose: account and legal pages, and the plans URL the tools
+// return as upgradeUrl (a fixed output contract the guidance must quote as is).
+test("every shipped developer-portal link carries ref=mcp-npm and its surface's campaign", () => {
+  const surfaces = {
+    "README.md": "readme-npm", "package.json": "homepage-npm", "manifest.json": "mcpb-npm",
+    ".claude-plugin/plugin.json": "claude-plugin-npm", ".cursor-plugin/plugin.json": "cursor-plugin-npm",
+    ".grok-plugin/plugin.json": "grok-plugin-npm", "gemini-extension.json": "gemini-npm",
+    "server.json": "registry-npm", "smithery.yaml": "smithery-npm",
+    ".agents/skills/pulse-verity/SKILL.md": "skill-npm", ".agents/skills/pulse-verity/references/connect.md": "skill-npm",
+    "claude-skills/pulse-verity-price-check/SKILL.md": "claude-skill-npm", "docs/grok.md": "grok-docs-npm"
+  };
+  const untagged = new Set(["https://thepulse.markets/developers/access", "https://thepulse.markets/developers/privacy",
+    "https://thepulse.markets/developers/terms", "https://thepulse.markets/developers#/portal/pricing",
+    "https://thepulse.markets/developers#/portal/reference"]);
+  for (const [path, campaign] of Object.entries(surfaces)) {
+    const links = [...read(path).matchAll(/https:\/\/thepulse\.markets\/developers[^\s"'`)<>]*/g)].map(([link]) => link);
+    const tagged = links.filter((link) => !untagged.has(link));
+    assert(tagged.length > 0, `${path} has no tagged portal link`);
+    for (const link of tagged) {
+      const url = new URL(link);
+      assert.equal(url.pathname, "/developers", `${path}: ${link}`);
+      assert.equal(url.searchParams.get("ref"), "mcp-npm", `${path}: ${link}`);
+      assert.equal(url.searchParams.get("utm_campaign"), campaign, `${path}: ${link}`);
+      assert.equal(url.searchParams.get("src"), null, `${path}: only the cap answer carries src=cap: ${link}`);
+      assert(!/[.,;:]$/.test(link), `${path}: punctuation would be copied into ${link}`);
+    }
+  }
+});
+
+test("the README's first instruction is the hosted server with Google sign-in; the keyless try-out follows", () => {
+  const readme = read("README.md");
+  const headings = [...readme.matchAll(/^## (.+)$/gm)].map(([, heading]) => heading);
+  assert.equal(headings[0], "Start here: connect the hosted server (sign in with Google, no key to copy)");
+  const start = readme.slice(readme.indexOf("## " + headings[0]), readme.indexOf("## " + headings[1]));
+  assert(start.includes("`https://mcp.thepulse.markets/api/index/mcp`"));
+  assert(start.includes("claude mcp add --transport http pulse-verity https://mcp.thepulse.markets/api/index/mcp"));
+  for (const client of ["**Claude**", "**Claude Code**", "**ChatGPT**", "**Claude plugin**", "**Grok Bot and the xAI API**"]) assert(start.includes(client), client);
+  assert(headings.indexOf("Try without an account: first signed BTC sample") > 0);
+  for (const anchor of [...readme.matchAll(/\]\(#([a-z0-9-]+)\)/g)].map(([, a]) => a)) {
+    const slugs = headings.concat([...readme.matchAll(/^### (.+)$/gm)].map(([, h]) => h))
+      .map((h) => h.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/ /g, "-"));
+    assert(slugs.includes(anchor), `README links to a missing section: #${anchor}`);
+  }
+  assert(readme.includes(`npx -y ${pkg.name}@${pkg.version}`) && !/pulse-verity@1\.3\.7/.test(readme));
+});

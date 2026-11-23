@@ -5,7 +5,7 @@ license: MIT
 compatibility: Needs HTTPS access to mcp.thepulse.markets. Use a client with remote MCP and OAuth sign-in, or Node.js 18+ for the pulse-verity npm package.
 metadata:
   author: Pulse
-  homepage: https://thepulse.markets/developers
+  homepage: https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=skill-npm
   repository: https://github.com/PulseBet/pulse-verity
 ---
 
@@ -99,7 +99,7 @@ every tool is present.
   stop and tell the person the reset time and their options. Do not retry in a
   loop, rotate keys or open extra accounts to get around a limit.
 - Options after `KEY_REQUIRED` (no account yet): sign in to the hosted server,
-  or create a developer account at `https://thepulse.markets/developers`
+  or create a developer account at `https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=skill-npm#/signup`
   (Developer plan, no charge).
 - Options after `MONTHLY_LIMIT`: wait for the reset, or the plans page
   `https://thepulse.markets/developers#/portal/pricing` (the `upgradeUrl` from

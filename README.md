@@ -1,5 +1,25 @@
 # Pulse Verity Index
 
+## Start here: connect the hosted server (sign in with Google, no key to copy)
+
+Add `https://mcp.thepulse.markets/api/index/mcp` to your client and sign in with
+Google. Nothing is installed locally. Signing in creates your Pulse Verity
+developer account and its key for you (Developer plan, no charge), so there is
+no key to copy or paste.
+
+- **Claude** (web, desktop, mobile): Settings → Connectors → Add custom connector → paste the URL → Connect, then sign in (Continue with Google, or email).
+- **Claude Code**: `claude mcp add --transport http pulse-verity https://mcp.thepulse.markets/api/index/mcp`, then run `/mcp` in Claude Code and sign in.
+- **ChatGPT**: Settings → Connectors → Create → paste the URL. Same sign-in.
+- **Claude plugin**: see the [Claude plugin guide](docs/claude-code.md).
+- **Grok Bot and the xAI API**: see [Use Pulse Verity with Grok](docs/grok.md).
+- **Cursor, VS Code and other clients**: use the [hosted server with a developer key header](#connect-the-hosted-server-details),
+  or run the npm package locally with the [manual MCP configuration](#manual-mcp-configuration).
+
+No account yet and just want to look? [Try a signed BTC sample without a key](#try-without-an-account-first-signed-btc-sample)
+using the npm package.
+
+## About
+
 **Signed crypto prices built for AI agents.** `pulse-verity` is an MCP server
 for signed crypto reference prices from the **Pulse Verity Index**, with local receipt verification. Try limited BTC, ETH
 and SOL samples without an account or API key. A valid signature authenticates
@@ -7,26 +27,23 @@ the signed fields; it does not prove price accuracy, freshness or suitability
 for trading.
 
 [**View the GitHub MCP Registry listing**](https://github.com/mcp/PulseBet/pulse-verity)
-· [Developer access and plans](https://thepulse.markets/developers)
+· [Developer access and plans](https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=readme-npm)
 
 Listed in the GitHub MCP Registry and the official MCP Registry as
 `io.github.PulseBet/pulse-verity`. A listing is not an endorsement by GitHub or
 the registry.
 
-**Two ways to start:**
-- **Fastest, no install:** [connect the hosted server](#connect-the-hosted-server-sign-in-with-google-no-key-to-copy)
-  and sign in with Google. Your developer account and key are created for you.
-- **Try without an account:** the three steps below run the npm package with no
-  key and verify a signed BTC sample.
+## Try without an account: first signed BTC sample
 
-## First signed BTC sample: install, read, verify
+No account or key needed. The three steps below run the npm package with no
+key and verify a signed BTC sample.
 
 **1. Install in Claude Code.** With Claude Code, Node.js 18 or newer and npm
 available, run this command in your terminal. It registers the pinned stdio
 server; `npx` downloads and starts the package when your client connects.
 
 ```bash
-claude mcp add pulse-verity -- npx -y pulse-verity@1.3.7
+claude mcp add pulse-verity -- npx -y pulse-verity@1.3.8
 ```
 
 Start a new Claude Code session. Leave `PULSE_API_KEY` unset for this keyless
@@ -74,8 +91,8 @@ for the exact fields and trust boundary.
 | Hosted MCP | Sign in with Google (or an existing developer password or key) from your client; no key to copy. The keyless workflow above uses the installed stdio package. |
 
 Create or sign in to your account at the
-[developer portal](https://thepulse.markets/developers), then
-[view available plans](https://thepulse.markets/developers#/portal/pricing).
+[developer portal](https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=readme-npm#/signup), then
+[view available plans](https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=readme-npm#/portal/pricing).
 Configure keys only in your client's private settings, never in a prompt or
 committed configuration. Developer access does not imply unlimited usage or
 availability of every asset. [Request limits and account access](#request-limits-and-account-access)
@@ -125,18 +142,11 @@ Only the feedback tool writes a report. It requires a developer key and an enabl
 feedback service; it cannot trade, transfer funds or change prices. This package
 contains no Pulse platform engine code.
 
-## Connect the hosted server (sign in with Google, no key to copy)
+## Connect the hosted server: details
 
-The hosted MCP runs on Pulse's side at `https://mcp.thepulse.markets/api/index/mcp`.
-Nothing is installed locally. Signing in creates your Pulse Verity developer
-account and its key for you (Developer plan, no charge), so there is no key to
-copy or paste.
-
-- **Claude** (web, desktop, mobile): Settings → Connectors → Add custom connector → paste the URL → Connect, then sign in (Continue with Google, or email).
-- **ChatGPT**: Settings → Connectors → Create → paste the URL. Same sign-in.
-- **Claude Code**: `claude mcp add --transport http pulse-verity https://mcp.thepulse.markets/api/index/mcp`, then run `/mcp` in Claude Code and sign in.
-- **Claude plugin**: see the [Claude plugin guide](docs/claude-code.md).
-- **Grok Bot and the xAI API**: see [Use Pulse Verity with Grok](docs/grok.md).
+The hosted MCP runs on Pulse's side at `https://mcp.thepulse.markets/api/index/mcp`;
+the [Start here](#start-here-connect-the-hosted-server-sign-in-with-google-no-key-to-copy)
+section at the top lists the per-client steps.
 
 Sign-in is standard OAuth 2.1 (dynamic client registration, PKCE). Discovery
 documents live at `/.well-known/oauth-authorization-server` and
@@ -153,7 +163,7 @@ instead. Keep it in the client's private configuration, never in chat:
 
 A developer key enables catalogue access, batch reads and recorded prints,
 subject to your account's allowance. Sign up at
-[thepulse.markets/developers](https://thepulse.markets/developers?ref=mcp-npm#/signup)
+[thepulse.markets/developers](https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=readme-npm#/signup)
 (Developer plan, no charge; Continue with Google skips the email step), then
 create a key. Keep it in `PULSE_API_KEY` in your MCP client's private
 configuration; never share it in chat.
@@ -161,7 +171,7 @@ configuration; never share it in chat.
 ```bash
 claude mcp add pulse-verity \
   --env PULSE_API_KEY=pidx_your_key_here \
-  -- npx -y pulse-verity@1.3.7
+  -- npx -y pulse-verity@1.3.8
 ```
 
 For any stdio MCP client:
@@ -171,7 +181,7 @@ For any stdio MCP client:
   "mcpServers": {
     "pulse-verity": {
       "command": "npx",
-      "args": ["-y", "pulse-verity@1.3.7"],
+      "args": ["-y", "pulse-verity@1.3.8"],
       "env": { "PULSE_API_KEY": "pidx_your_key_here" }
     }
   }
@@ -193,7 +203,7 @@ directory approval, publication or a successful authenticated connection.
 ### Cursor marketplace package
 
 This repository includes `.cursor-plugin/plugin.json` and `mcp.json` for
-Cursor's plugin loader. The plugin is pinned to `pulse-verity@1.3.7`
+Cursor's plugin loader. The plugin is pinned to `pulse-verity@1.3.8`
 package with `npx`; Node.js 18 or newer is required. No platform engine code
 or private repository access is included.
 
@@ -217,11 +227,11 @@ grok plugin install PulseBet/pulse-verity --trust
 ```
 
 Start a new Grok Build session, then ask for the current Bitcoin index price.
-The plugin starts `npx -y pulse-verity@1.3.7`; Node.js 18 or newer and npm are
+The plugin starts `npx -y pulse-verity@1.3.8`; Node.js 18 or newer and npm are
 required. Limited BTC, ETH and SOL samples work without an API key. To enable
 catalogue, batch and recorded-print requests, set `PULSE_API_KEY` in the
 environment that launches Grok Build, then start a new session. Get a developer
-key at [the developer portal](https://thepulse.markets/developers?ref=mcp-npm#/signup);
+key at [the developer portal](https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=readme-npm#/signup);
 never save it in these repository files.
 
 The `.grok-plugin/plugin.json` manifest explicitly selects
@@ -250,7 +260,7 @@ gemini extensions install https://github.com/PulseBet/pulse-verity --skip-settin
 ```
 
 Restart Gemini CLI, then ask for the current Bitcoin index price. The extension
-starts the pinned `pulse-verity@1.3.7` package through `npx`; Node.js and npm
+starts the pinned `pulse-verity@1.3.8` package through `npx`; Node.js and npm
 must be available. Limited BTC, ETH and SOL samples work without a key. Gemini may warn
 that the optional setting is unset; that does not prevent keyless startup.
 
@@ -273,7 +283,7 @@ not a listing in the consumer Gemini chat app.
 
 ### Manual MCP configuration
 
-All of these pin `npx -y pulse-verity@1.3.7`. The examples show a placeholder
+All of these pin `npx -y pulse-verity@1.3.8`. The examples show a placeholder
 `PULSE_API_KEY`; omit the `env` entry for the keyless sample workflow.
 
 **Codex CLI** — `~/.codex/config.toml`:
@@ -281,20 +291,20 @@ All of these pin `npx -y pulse-verity@1.3.7`. The examples show a placeholder
 ```toml
 [mcp_servers.pulse-verity]
 command = "npx"
-args = ["-y", "pulse-verity@1.3.7"]
+args = ["-y", "pulse-verity@1.3.8"]
 env = { PULSE_API_KEY = "pidx_your_key" }
 ```
 
 **Windsurf** — `~/.codeium/windsurf/mcp_config.json`, and **Cursor** — `~/.cursor/mcp.json`:
 
 ```json
-{ "mcpServers": { "pulse-verity": { "command": "npx", "args": ["-y", "pulse-verity@1.3.7"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+{ "mcpServers": { "pulse-verity": { "command": "npx", "args": ["-y", "pulse-verity@1.3.8"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
 ```
 
 **VS Code (Copilot agent mode)** — `.vscode/mcp.json`:
 
 ```json
-{ "servers": { "pulse-verity": { "type": "stdio", "command": "npx", "args": ["-y", "pulse-verity@1.3.7"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
+{ "servers": { "pulse-verity": { "type": "stdio", "command": "npx", "args": ["-y", "pulse-verity@1.3.8"], "env": { "PULSE_API_KEY": "pidx_your_key" } } } }
 ```
 
 **Gemini CLI** — `~/.gemini/settings.json`, same `mcpServers` block as Cursor.
@@ -314,7 +324,7 @@ Gemini plugins in this repository do not load these files.
 
 ## Claude Desktop: one-click install
 
-Download [`pulse-verity-1.3.7.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.3.7/pulse-verity-1.3.7.mcpb),
+Download [`pulse-verity-1.3.8.mcpb`](https://github.com/PulseBet/pulse-verity/releases/download/v1.3.8/pulse-verity-1.3.8.mcpb),
 open it with Claude Desktop (macOS or Windows), and leave the optional key blank
 to try limited BTC, ETH and SOL samples. Add your developer key for catalogue,
 batch and recorded-print requests. The bundle contains the same compiled server modules npm ships, with its runtime
@@ -453,8 +463,11 @@ Without a key, an HTTP 401 from the keyless sample with code `KEY_REQUIRED`
 means this network's samples are used up for the UTC day. The tool error has
 `code: "KEY_REQUIRED"`, `nextAction: "get_key"`, `getKeyUrl`,
 `hostedServerUrl` and, when the API supplies a valid timestamp, `resetAt`.
-The server's own message and links are not forwarded. A 401 for a configured
-key still means the key was refused (`BAD_KEY`).
+The text is one line, the same offer the server makes: a key in 30 seconds on
+the Developer plan (no charge), the package's own sign-up link, and that the key
+goes in `PULSE_API_KEY`, never in chat. The reset time is in `resetAt`, not in
+the text. The server's own message and links are not forwarded. A 401 for a
+configured key still means the key was refused (`BAD_KEY`).
 
 ## Verify locally
 
@@ -516,7 +529,7 @@ no saved receipt is claimed and the agent must not repeatedly retry.
 The tool does not run submitted instructions, create pull requests or change
 production. Humans review reports before any fix is proposed.
 
-This README describes version `1.3.7`. Each npm release has a matching
+This README describes version `1.3.8`. Each npm release has a matching
 versioned MCPB in [GitHub Releases](https://github.com/PulseBet/pulse-verity/releases/latest).
 Pinned installations keep their configured package version until the
 configuration is updated. Unpinned installations may resolve newer npm releases.

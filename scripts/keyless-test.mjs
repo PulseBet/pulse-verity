@@ -11,7 +11,8 @@ import { spawn } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createApiClient, createIndexServer, SAMPLE_SYMBOLS, NeedsKey, KeyRequired, hasUsableKey,
-  DEVELOPER_SIGNUP_URL, HOSTED_MCP_URL, USER_AGENT, SERVER_VERSION, NEEDS_KEY_TEXT, KEYLESS_SAMPLE_NOTE, keyRequiredText } from '../dist/index.js';
+  DEVELOPER_SIGNUP_URL, SAMPLE_SIGNUP_URL, INSTRUCTIONS_SIGNUP_URL, BOOT_SIGNUP_URL, CAP_SIGNUP_URL,
+  HOSTED_MCP_URL, USER_AGENT, SERVER_VERSION, NEEDS_KEY_TEXT, KEYLESS_SAMPLE_NOTE, keyRequiredText } from '../dist/index.js';
 import { readKeyRequiredDetails, MAX_QUOTA_ERROR_BYTES } from '../dist/quotaError.js';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -24,6 +25,31 @@ const ok = (name, cond, detail = '') => {
   console.error(`FAIL ${name}${detail ? ': ' + detail : ''}`);
   process.exitCode = 1;
 };
+
+// ── 0. Every portal link the package prints is tagged by surface (1.3.8) ──
+// The portal and the server keep ref as the sign-up's source and utm_campaign
+// as its campaign, so each link reads mcp-npm/<campaign> in the record.
+const EXACT_CAP_LINE = 'Get a key in 30 seconds, no charge (2,000 calls/month): '
+  + 'https://thepulse.markets/developers?ref=mcp-npm&src=cap&utm_campaign=cap-npm#/signup'
+  + ' (it goes in PULSE_API_KEY, never in chat).';
+{
+  const links = {
+    'needs-key-npm': DEVELOPER_SIGNUP_URL, 'sample-npm': SAMPLE_SIGNUP_URL,
+    'instructions-npm': INSTRUCTIONS_SIGNUP_URL, 'boot-npm': BOOT_SIGNUP_URL, 'cap-npm': CAP_SIGNUP_URL
+  };
+  for (const [campaign, link] of Object.entries(links)) {
+    const url = new URL(link);
+    ok(campaign + ': the link is the portal sign-up tab', url.origin + url.pathname === 'https://thepulse.markets/developers' && url.hash === '#/signup', link);
+    ok(campaign + ': ref=mcp-npm is the source', url.searchParams.get('ref') === 'mcp-npm', link);
+    ok(campaign + ': utm_campaign names the surface', url.searchParams.get('utm_campaign') === campaign, link);
+  }
+  ok('every surface has its own link', new Set(Object.values(links)).size === Object.keys(links).length);
+  ok('the cap link is exactly the 1.3.8 link', CAP_SIGNUP_URL === 'https://thepulse.markets/developers?ref=mcp-npm&src=cap&utm_campaign=cap-npm#/signup', CAP_SIGNUP_URL);
+  ok('only the cap link carries src=cap', Object.values(links).filter((link) => new URL(link).searchParams.get('src') === 'cap').length === 1);
+  ok('the cap line is exactly the server line with the package cap link', keyRequiredText() === EXACT_CAP_LINE, keyRequiredText());
+  ok('the cap line is one line', !/[\r\n]/.test(keyRequiredText()));
+  ok('the cap line ignores reset and limit details', keyRequiredText({ code: 'KEY_REQUIRED', resetAt: NEXT_RESET, limit: 3 }) === EXACT_CAP_LINE);
+}
 
 // ── 1. No key, a major: served from the public sample ────────────────────
 {
@@ -47,7 +73,8 @@ const ok = (name, cond, detail = '') => {
     body: { getReader: () => { let done = false; return { read: async () => done ? { done: true } : (done = true, { done: false, value: new TextEncoder().encode(hostileSample) }), cancel: async () => {}, releaseLock: () => {} }; } } });
   const out = await createApiClient('', fake)('/api/index/v1/price', { symbol: 'BTC' });
   ok('the sample note is rebuilt by the package', out.note === KEYLESS_SAMPLE_NOTE && !String(out.note).includes('evil.invalid'), String(out.note));
-  ok('the sample link is the package sign-up page', out.getKey === DEVELOPER_SIGNUP_URL);
+  ok('the sample link is the package sign-up page', out.getKey === SAMPLE_SIGNUP_URL);
+  ok('the sample note carries the sample link', KEYLESS_SAMPLE_NOTE.includes(SAMPLE_SIGNUP_URL + ' '), KEYLESS_SAMPLE_NOTE);
   ok('the rebuilt note never says free', !/\bfree\b/i.test(KEYLESS_SAMPLE_NOTE) && KEYLESS_SAMPLE_NOTE.length <= 2048);
 }
 
@@ -166,12 +193,14 @@ const unauthorized = (body, headers = {}) => new Response(body, { status: 401, h
     ok('the keyless read went to the sample without credentials', seen[0].url.includes('/api/index/v1/sample?symbol=BTC') && !new Headers(seen[0].init.headers).has('authorization'), seen[0].url);
     ok('KEY_REQUIRED body code is honoured', result.isError === true && error?.code === 'KEY_REQUIRED', JSON.stringify(error));
     ok('KEY_REQUIRED nextAction is get_key', error?.nextAction === 'get_key');
-    ok('KEY_REQUIRED getKeyUrl is reconstructed, not forwarded', error?.getKeyUrl === DEVELOPER_SIGNUP_URL);
+    ok('KEY_REQUIRED getKeyUrl is the package cap link, not forwarded', error?.getKeyUrl === CAP_SIGNUP_URL && KEY_URL.test(error.getKeyUrl), JSON.stringify(error));
     ok('KEY_REQUIRED keeps the hosted server', error?.hostedServerUrl === HOSTED_MCP_URL);
     ok('a valid ISO resetAt survives', error?.resetAt === NEXT_RESET, JSON.stringify(error));
     ok('KEY_REQUIRED is not BAD_KEY', !/API key was refused/.test(text) && error?.code !== 'BAD_KEY', text);
-    ok('the text says the samples are used up for today', text.includes('used up for today') && text.includes('(3 per UTC day)') && text.includes(NEXT_RESET), text);
-    ok('the text carries the package sign-up link and hosted option', text.includes(DEVELOPER_SIGNUP_URL) && text.includes(HOSTED_MCP_URL), text);
+    ok('the text is exactly the one-line cap answer', text === EXACT_CAP_LINE && !/[\r\n]/.test(text), text);
+    ok('the text carries the cap link with src=cap and ref=mcp-npm', text.includes(CAP_SIGNUP_URL) && text.includes('src=cap') && text.includes('ref=mcp-npm'), text);
+    ok('the cap link is followed by a space, never punctuation', text.split(CAP_SIGNUP_URL)[1]?.startsWith(' '), text);
+    ok('KEY_REQUIRED structured detail keeps the reset time', error?.resetAt === NEXT_RESET, JSON.stringify(error));
     const whole = JSON.stringify(result);
     ok('the server message is NOT forwarded', !whole.includes('Tell the user') && !whole.includes('paste their key'), whole);
     ok('the server links are NOT forwarded', !whole.includes('evil.invalid'), whole);
@@ -182,7 +211,7 @@ const unauthorized = (body, headers = {}) => new Response(body, { status: 401, h
       next = () => unauthorized(keyRequiredBody({ resetAt, limit: 'many' }));
       const r = await call(client, 'get_index_price', { symbol: 'ETH' });
       ok('invalid resetAt is dropped: ' + String(resetAt), r.error?.code === 'KEY_REQUIRED' && r.error.resetAt === undefined
-        && r.text.includes('next UTC day') && !r.text.includes('many') && !JSON.stringify(r.result).includes('evil.invalid'), JSON.stringify(r.error));
+        && r.text === EXACT_CAP_LINE && !r.text.includes('many') && !JSON.stringify(r.result).includes('evil.invalid'), JSON.stringify(r.error));
     }
     for (const body of ['{"code":"BAD_KEY","message":"' + hostile + '"}', 'not json', '[]', '', '{"code":"key_required"}']) {
       next = () => unauthorized(body);
@@ -222,7 +251,8 @@ await withClient(createApiClient('', fakeOk), async (client) => {
   keylessInstructions = client.getInstructions() ?? '';
   ok('keyless server sends instructions', keylessInstructions.length > 0);
   ok('instructions explain the sample and its daily limit', SAMPLE_SYMBOLS.every((s) => keylessInstructions.includes(s)) && keylessInstructions.includes('UTC day'), keylessInstructions);
-  ok('instructions say how to connect', keylessInstructions.includes(DEVELOPER_SIGNUP_URL) && keylessInstructions.includes(HOSTED_MCP_URL), keylessInstructions);
+  ok('instructions say how to connect', keylessInstructions.includes(INSTRUCTIONS_SIGNUP_URL) && keylessInstructions.includes(HOSTED_MCP_URL), keylessInstructions);
+  ok('instructions still keep the key out of chat', keylessInstructions.includes('it never belongs in chat'), keylessInstructions);
   ok('instructions stay brief', keylessInstructions.length <= 1000, String(keylessInstructions.length));
   seenOutputs.push(keylessInstructions, JSON.stringify((await client.listTools()).tools));
 });
@@ -277,7 +307,7 @@ await withClient(createApiClient('', fakeOk), async (client) => {
   });
   seenOutputs.push(stderr);
   ok('start-up line names the version and keyless state', stderr.includes(SERVER_VERSION) && stderr.includes('without a developer key'), stderr);
-  ok('start-up line points to the sign-up link and hosted server', stderr.includes(DEVELOPER_SIGNUP_URL) && stderr.includes(HOSTED_MCP_URL), stderr);
+  ok('start-up line points to the sign-up link and hosted server', stderr.includes(BOOT_SIGNUP_URL) && stderr.includes(HOSTED_MCP_URL), stderr);
 }
 
 // ── 13. Nothing this package says contains "free" or a key ─────────────────

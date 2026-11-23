@@ -72,7 +72,7 @@ settings, followed by a client restart.
 
 ## Developer account
 
-Sign up at `https://thepulse.markets/developers` (Developer plan, no charge;
+Sign up at `https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=skill-npm#/signup` (Developer plan, no charge;
 Continue with Google skips the email step). Plans and limits:
 `https://thepulse.markets/developers#/portal/pricing`. The account holder makes
 any purchase in the portal.

@@ -4,7 +4,7 @@
 # The API key is OPTIONAL. With no key the server starts and answers
 # get_index_price with limited BTC, ETH and SOL samples, signed and
 # verifiable exactly like a keyed read; verify_print also works without a key.
-# A developer key from https://thepulse.markets/developers (Developer plan,
+# A developer key from https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=smithery-npm#/signup (Developer plan,
 # no charge) adds catalogue discovery, batch reads and recorded prints,
 # subject to the account's allowance.
 startCommand:
@@ -19,7 +19,7 @@ startCommand:
         description: >-
           Optional. Leave blank for limited BTC, ETH and SOL samples. For
           broader requests, use your own developer key from
-          https://thepulse.markets/developers (Developer plan, no charge).
+          https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=smithery-npm#/signup (Developer plan, no charge).
           Access, coverage and usage allowances depend on your account.
   commandFunction: |-
     (config) => ({

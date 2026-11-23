@@ -1,12 +1,12 @@
 {
   "name": "pulse-verity",
   "displayName": "Pulse Verity Price Check",
-  "version": "1.3.7",
+  "version": "1.3.8",
   "description": "Read crypto reference-price observations and verify their signed receipts with a guided, read-only workflow.",
   "author": {
     "name": "Pulse",
     "email": "support@thepulse.markets",
-    "url": "https://thepulse.markets/developers"
+    "url": "https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=claude-plugin-npm"
   },
   "homepage": "https://github.com/PulseBet/pulse-verity/blob/main/docs/claude-code.md",
   "repository": "https://github.com/PulseBet/pulse-verity",
@@ -27,6 +27,6 @@
   "privacyPolicyUrl": "https://thepulse.markets/developers/privacy",
   "termsOfServiceUrl": "https://thepulse.markets/developers/terms",
   "documentationUrl": "https://github.com/PulseBet/pulse-verity/blob/main/docs/claude-code.md",
-  "supportUrl": "https://thepulse.markets/developers",
+  "supportUrl": "https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=claude-plugin-npm",
   "icon": "./assets/pulse-icon-1024.png"
 }
