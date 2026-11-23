@@ -29,9 +29,15 @@ const ok = (name, cond, detail = '') => {
 // ── 0. Every portal link the package prints is tagged by surface (1.3.8) ──
 // The portal and the server keep ref as the sign-up's source and utm_campaign
 // as its campaign, so each link reads mcp-npm/<campaign> in the record.
-const EXACT_CAP_LINE = 'Get a key in 30 seconds, no charge (2,000 calls/month): '
-  + 'https://thepulse.markets/developers?ref=mcp-npm&src=cap&utm_campaign=cap-npm#/signup'
-  + ' (it goes in PULSE_API_KEY, never in chat).';
+const CAP_LINK = 'https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=cap-npm#/signup';
+const capLine = (limitPart, resetPart) => 'Note for the user: the keyless Pulse Verity samples for this network are used up for today'
+  + limitPart + '; ' + resetPart
+  + 'Get a key in 30 seconds on the Developer plan, no charge: ' + CAP_LINK
+  + " (it goes in PULSE_API_KEY in the MCP client's private configuration, never in chat). "
+  + 'Or connect the hosted server at https://mcp.thepulse.markets/api/index/mcp and sign in, with no key to copy. '
+  + 'Repeating the request before the reset returns this same answer.';
+const EXACT_CAP_LINE = capLine(' (3 per UTC day)', 'they reset at ' + NEXT_RESET + ' (UTC). ');
+const BARE_CAP_LINE = capLine('', 'they reset with the next UTC day. ');
 {
   const links = {
     'needs-key-npm': DEVELOPER_SIGNUP_URL, 'sample-npm': SAMPLE_SIGNUP_URL,
@@ -44,11 +50,13 @@ const EXACT_CAP_LINE = 'Get a key in 30 seconds, no charge (2,000 calls/month): 
     ok(campaign + ': utm_campaign names the surface', url.searchParams.get('utm_campaign') === campaign, link);
   }
   ok('every surface has its own link', new Set(Object.values(links)).size === Object.keys(links).length);
-  ok('the cap link is exactly the 1.3.8 link', CAP_SIGNUP_URL === 'https://thepulse.markets/developers?ref=mcp-npm&src=cap&utm_campaign=cap-npm#/signup', CAP_SIGNUP_URL);
-  ok('only the cap link carries src=cap', Object.values(links).filter((link) => new URL(link).searchParams.get('src') === 'cap').length === 1);
-  ok('the cap line is exactly the server line with the package cap link', keyRequiredText() === EXACT_CAP_LINE, keyRequiredText());
-  ok('the cap line is one line', !/[\r\n]/.test(keyRequiredText()));
-  ok('the cap line ignores reset and limit details', keyRequiredText({ code: 'KEY_REQUIRED', resetAt: NEXT_RESET, limit: 3 }) === EXACT_CAP_LINE);
+  ok('the cap link is exactly the 1.3.8 link', CAP_SIGNUP_URL === CAP_LINK, CAP_SIGNUP_URL);
+  ok('no link carries a src parameter the portal never reads', Object.values(links).every((link) => !new URL(link).searchParams.has('src')));
+  const full = keyRequiredText({ code: 'KEY_REQUIRED', resetAt: NEXT_RESET, limit: 3 });
+  ok('the cap line is exactly the package line with reason, limit and reset', full === EXACT_CAP_LINE, full);
+  ok('without details the cap line still says why and when', keyRequiredText() === BARE_CAP_LINE, keyRequiredText());
+  ok('the cap line is one line', !/[\r\n]/.test(full) && !/[\r\n]/.test(keyRequiredText()));
+  ok('the cap line quotes no allowance figure', !/calls\/month|\d,\d{3}/.test(full), full);
 }
 
 // ── 1. No key, a major: served from the public sample ────────────────────
@@ -198,7 +206,8 @@ const unauthorized = (body, headers = {}) => new Response(body, { status: 401, h
     ok('a valid ISO resetAt survives', error?.resetAt === NEXT_RESET, JSON.stringify(error));
     ok('KEY_REQUIRED is not BAD_KEY', !/API key was refused/.test(text) && error?.code !== 'BAD_KEY', text);
     ok('the text is exactly the one-line cap answer', text === EXACT_CAP_LINE && !/[\r\n]/.test(text), text);
-    ok('the text carries the cap link with src=cap and ref=mcp-npm', text.includes(CAP_SIGNUP_URL) && text.includes('src=cap') && text.includes('ref=mcp-npm'), text);
+    ok('the text says the samples are used up, the limit and the reset', text.includes('used up for today') && text.includes('(3 per UTC day)') && text.includes(NEXT_RESET), text);
+    ok('the text carries the cap link and the hosted option', text.includes(CAP_SIGNUP_URL) && text.includes('ref=mcp-npm') && text.includes(HOSTED_MCP_URL), text);
     ok('the cap link is followed by a space, never punctuation', text.split(CAP_SIGNUP_URL)[1]?.startsWith(' '), text);
     ok('KEY_REQUIRED structured detail keeps the reset time', error?.resetAt === NEXT_RESET, JSON.stringify(error));
     const whole = JSON.stringify(result);
@@ -211,7 +220,7 @@ const unauthorized = (body, headers = {}) => new Response(body, { status: 401, h
       next = () => unauthorized(keyRequiredBody({ resetAt, limit: 'many' }));
       const r = await call(client, 'get_index_price', { symbol: 'ETH' });
       ok('invalid resetAt is dropped: ' + String(resetAt), r.error?.code === 'KEY_REQUIRED' && r.error.resetAt === undefined
-        && r.text === EXACT_CAP_LINE && !r.text.includes('many') && !JSON.stringify(r.result).includes('evil.invalid'), JSON.stringify(r.error));
+        && r.text === BARE_CAP_LINE && !r.text.includes('many') && !JSON.stringify(r.result).includes('evil.invalid'), JSON.stringify(r.error));
     }
     for (const body of ['{"code":"BAD_KEY","message":"' + hostile + '"}', 'not json', '[]', '', '{"code":"key_required"}']) {
       next = () => unauthorized(body);

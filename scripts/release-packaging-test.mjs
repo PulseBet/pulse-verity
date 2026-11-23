@@ -164,7 +164,7 @@ test("every shipped developer-portal link carries ref=mcp-npm and its surface's 
       assert.equal(url.pathname, "/developers", `${path}: ${link}`);
       assert.equal(url.searchParams.get("ref"), "mcp-npm", `${path}: ${link}`);
       assert.equal(url.searchParams.get("utm_campaign"), campaign, `${path}: ${link}`);
-      assert.equal(url.searchParams.get("src"), null, `${path}: only the cap answer carries src=cap: ${link}`);
+      assert.equal(url.searchParams.get("src"), null, `${path}: src is never read by the portal: ${link}`);
       assert(!/[.,;:]$/.test(link), `${path}: punctuation would be copied into ${link}`);
     }
   }

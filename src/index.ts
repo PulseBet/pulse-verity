@@ -23,8 +23,8 @@ export const API_BASE = "https://mcp.thepulse.markets";
  *  from an API response. Each carries ref=mcp-npm (kept as the sign-up's source)
  *  and a utm_campaign naming the surface (kept as its campaign), so a sign-up
  *  reads mcp-npm/<campaign> in the developer acquisition record. */
-const npmSignupUrl = (campaign: string, extra = "") =>
-  "https://thepulse.markets/developers?ref=mcp-npm" + extra + "&utm_campaign=" + campaign + "#/signup";
+const npmSignupUrl = (campaign: string) =>
+  "https://thepulse.markets/developers?ref=mcp-npm&utm_campaign=" + campaign + "#/signup";
 /** The no-key answer (NO_KEY): text and getKeyUrl. */
 export const DEVELOPER_SIGNUP_URL = npmSignupUrl("needs-key-npm");
 /** The keyless sample's note and getKey. */
@@ -33,9 +33,10 @@ export const SAMPLE_SIGNUP_URL = npmSignupUrl("sample-npm");
 export const INSTRUCTIONS_SIGNUP_URL = npmSignupUrl("instructions-npm");
 /** The start-up line on stderr. */
 export const BOOT_SIGNUP_URL = npmSignupUrl("boot-npm");
-/** The daily-cap answer (KEY_REQUIRED) only. src=cap matches the server's cap
- *  link; ref wins as the source, so the record reads mcp-npm/cap-npm. */
-export const CAP_SIGNUP_URL = npmSignupUrl("cap-npm", "&src=cap");
+/** The daily-cap answer (KEY_REQUIRED) only; the record reads mcp-npm/cap-npm.
+ *  No src parameter: the portal takes ref first as the source, so src would
+ *  never be read. */
+export const CAP_SIGNUP_URL = npmSignupUrl("cap-npm");
 export const HOSTED_MCP_URL = "https://mcp.thepulse.markets/api/index/mcp";
 export const INDEX_SIG_VERSION = "pulse-index-v1";
 export const INDEX_SIG_VERSION_V2 = "pulse-index-v2";
@@ -102,13 +103,20 @@ export const NEEDS_KEY_TEXT =
   "A Pulse Verity developer account gives access to every supported asset, batch reads and recorded prints, " +
   "within the account's allowance. " + accountText(DEVELOPER_SIGNUP_URL);
 
-/** The daily-cap answer: the same one line the server sends, with this package's
- *  cap link. The reset time and limit stay in structuredContent (resetAt). 2,000 is
- *  the Developer plan's monthly allowance; change this line if that changes. */
+/** The daily-cap answer, in the package's own words on one line: why the call
+ *  was refused, the daily limit and reset time when the API supplied valid ones,
+ *  the cap sign-up link, the hosted option, and that repeating it changes nothing.
+ *  Clients that pass the model only the text still get the reset time. No
+ *  allowance figure: a pinned install could not correct a figure that changes. */
 export function keyRequiredText(details: KeyRequiredDetails = { code: "KEY_REQUIRED" }): string {
-  void new KeyRequired(details); // the details are still validated; the line quotes neither the reset nor the limit
-  return "Get a key in 30 seconds, no charge (2,000 calls/month): " + CAP_SIGNUP_URL +
-    " (it goes in PULSE_API_KEY, never in chat).";
+  const { resetAt, limit } = new KeyRequired(details).details;
+  return "Note for the user: the keyless Pulse Verity samples for this network are used up for today" +
+    (limit ? " (" + limit + " per UTC day)" : "") + "; " +
+    (resetAt ? "they reset at " + resetAt + " (UTC). " : "they reset with the next UTC day. ") +
+    "Get a key in 30 seconds on the Developer plan, no charge: " + CAP_SIGNUP_URL +
+    " (it goes in PULSE_API_KEY in the MCP client's private configuration, never in chat). " +
+    "Or connect the hosted server at " + HOSTED_MCP_URL + " and sign in, with no key to copy. " +
+    "Repeating the request before the reset returns this same answer.";
 }
 
 /** The package's own wording for every keyless sample. The server's note and

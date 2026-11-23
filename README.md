@@ -12,8 +12,10 @@ no key to copy or paste.
 - **ChatGPT**: Settings → Connectors → Create → paste the URL. Same sign-in.
 - **Claude plugin**: see the [Claude plugin guide](docs/claude-code.md).
 - **Grok Bot and the xAI API**: see [Use Pulse Verity with Grok](docs/grok.md).
-- **Cursor, VS Code and other clients**: use the [hosted server with a developer key header](#connect-the-hosted-server-details),
-  or run the npm package locally with the [manual MCP configuration](#manual-mcp-configuration).
+- **Cursor, VS Code and other remote MCP clients**: add the URL as a remote (HTTP) server. A client that
+  supports MCP sign-in (OAuth) opens the same sign-in, with no key to copy. A client without sign-in can use
+  the [hosted server with a developer key header](#connect-the-hosted-server-details), or run the npm package
+  locally with the [manual MCP configuration](#manual-mcp-configuration).
 
 No account yet and just want to look? [Try a signed BTC sample without a key](#try-without-an-account-first-signed-btc-sample)
 using the npm package.
@@ -463,10 +465,12 @@ Without a key, an HTTP 401 from the keyless sample with code `KEY_REQUIRED`
 means this network's samples are used up for the UTC day. The tool error has
 `code: "KEY_REQUIRED"`, `nextAction: "get_key"`, `getKeyUrl`,
 `hostedServerUrl` and, when the API supplies a valid timestamp, `resetAt`.
-The text is one line, the same offer the server makes: a key in 30 seconds on
-the Developer plan (no charge), the package's own sign-up link, and that the key
-goes in `PULSE_API_KEY`, never in chat. The reset time is in `resetAt`, not in
-the text. The server's own message and links are not forwarded. A 401 for a
+The text is one line in the package's own words: the samples are used up for
+today, the per-day limit and reset time when the API supplies valid ones, a key
+in 30 seconds on the Developer plan (no charge) through the package's own
+sign-up link, that the key goes in `PULSE_API_KEY`, never in chat, the hosted
+server option, and that repeating the request before the reset returns the same
+answer. The server's own message and links are not forwarded. A 401 for a
 configured key still means the key was refused (`BAD_KEY`).
 
 ## Verify locally
